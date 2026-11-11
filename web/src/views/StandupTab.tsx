@@ -268,7 +268,7 @@ export function StandupTab({ day, projects, onChanged, onFinalize, finalizing }:
           <Section key={k} kind={k} points={day.points.filter((p) => p.kind === k)} day={day} projects={projects} onChanged={onChanged} />
         ))}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, position: 'sticky', top: 0 }}>
+      <div className="rail">
         <div className="card card-pad" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div className="eyebrow">Progress</div>
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 34, lineHeight: 1 }}>

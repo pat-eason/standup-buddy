@@ -15,8 +15,17 @@ const NAV: { id: View; label: string; icon: string }[] = [
   { id: 'day', label: 'Today', icon: 'today' },
   { id: 'history', label: 'History', icon: 'history' },
   { id: 'projects', label: 'Projects', icon: 'folder' },
-  { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
+const SETTINGS_NAV = { id: 'settings' as const, label: 'Settings', icon: 'settings' };
+const COLLAPSE_KEY = 'standup-buddy.nav-collapsed';
+
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 function useAppData(date: string | null) {
   const toast = useToast();
@@ -68,6 +77,7 @@ export function App() {
   const [date, setDate] = useState<string | null>(null);
   const [today, setToday] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
   const [focusSignal, setFocusSignal] = useState(0);
   const { day, days, projects, reload, updateDay } = useAppData(date);
 
@@ -104,21 +114,58 @@ export function App() {
     return p;
   }, [reload]);
 
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem(COLLAPSE_KEY, c ? '0' : '1');
+      } catch {
+        /* storage unavailable: the choice just won't persist */
+      }
+      return !c;
+    });
+  };
+
+  const goTo = (id: View) => (id === 'day' && today ? openDay(today) : setView(id));
+
   const openDay = (d: string) => {
     setDate(d);
     setView('day');
   };
 
+  const navButton = (n: { id: View; label: string; icon: string }) => (
+    <button
+      key={n.id}
+      className={`nav-item ${view === n.id ? 'active' : ''}`}
+      data-tip={n.label}
+      aria-label={n.label}
+      aria-current={view === n.id ? 'page' : undefined}
+      onClick={() => goTo(n.id)}
+    >
+      <Icon name={n.icon} size={19} />
+      <span className="nav-text">{n.label}</span>
+    </button>
+  );
+
   return (
-    <div className="shell">
+    <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
       <aside className="sidebar">
-        <div className="brand"><span>Standup Buddy<i>.</i></span></div>
+        <div className="side-head">
+          <div className="brand">
+            <span className="brand-full">Standup Buddy<i>.</i></span>
+            <span className="brand-mini">S<i>.</i></span>
+          </div>
+          <button
+            className="icon-btn collapse-btn"
+            data-tip={collapsed ? 'Expand menu' : 'Collapse menu'}
+            aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}
+            aria-expanded={!collapsed}
+            onClick={toggleCollapsed}
+          >
+            <Icon name="sidebar" size={18} />
+          </button>
+        </div>
         <nav className="nav" aria-label="Main">
-          {NAV.map((n) => (
-            <button key={n.id} className={`nav-item ${view === n.id ? 'active' : ''}`} onClick={() => (n.id === 'day' && today ? openDay(today) : setView(n.id))}>
-              <Icon name={n.icon} size={18} /> {n.label}
-            </button>
-          ))}
+          {NAV.map(navButton)}
         </nav>
         <div className="nav-label">Recent days</div>
         <div className="recent">
@@ -129,15 +176,12 @@ export function App() {
             </button>
           ))}
         </div>
-        <div className="ask-card">
-          <h4>Ask your notes</h4>
-          <p>Search across every standup and get answers with dates.</p>
-          <button onClick={() => setChatOpen(true)}>Open chat <kbd>⌘K</kbd></button>
-        </div>
+        <div className="nav-foot">{navButton(SETTINGS_NAV)}</div>
       </aside>
 
       <main className="main">
         <div className="topbar">
+          <span />
           {view === 'day' && date && today ? (
             <div className="datenav">
               <button className="icon-btn" aria-label="Previous day" onClick={() => setDate(shiftDate(date, -1))}><Icon name="left" size={16} /></button>
@@ -157,7 +201,13 @@ export function App() {
           {view === 'settings' && <SettingsView />}
         </div>
       </main>
-      {chatOpen && <ChatPopup onClose={() => setChatOpen(false)} />}
+      {chatOpen ? (
+        <ChatPopup onClose={() => setChatOpen(false)} />
+      ) : (
+        <button className="chat-fab" aria-label="Ask your notes (⌘K)" data-tip="Ask your notes  ⌘K" onClick={() => setChatOpen(true)}>
+          <Icon name="sparkle" size={24} />
+        </button>
+      )}
     </div>
   );
 }

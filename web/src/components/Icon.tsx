@@ -27,6 +27,7 @@ const paths: Record<string, ReactNode> = {
   lock: <><rect x="5" y="10.5" width="14" height="9.5" rx="2.5" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></>,
   refresh: <><path d="M19.5 12a7.5 7.5 0 1 1-2.4-5.5" /><path d="M19.5 4.5v4.2h-4.2" /></>,
   tool: <path d="M14.5 6.5a4 4 0 0 0 4.8 4.8l-8.8 8.8a2 2 0 0 1-2.8-2.8l8.8-8.8a4 4 0 0 1-2-2z" />,
+  sidebar: <><rect x="3.5" y="4.5" width="17" height="15" rx="3.5" /><path d="M9.5 4.5v15" /></>,
   external: <><path d="M14 4.5h5.5V10M19.5 4.5L11 13" /><path d="M18 14v3.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2H10" /></>,
 };
 
