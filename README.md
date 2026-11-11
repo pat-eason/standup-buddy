@@ -32,6 +32,17 @@ The app has **no login** and is bound to `127.0.0.1` on purpose. Do not expose i
 
 Stop it with `docker compose down`. Your data lives in the `pgdata` volume; add `-v` to wipe it.
 
+## Install as an app (PWA)
+
+Standup Buddy is an installable PWA: web manifest, icons and a service worker that keeps the UI shell available offline (data requests always go to the network). In Chrome use **Install** in the address bar, or the ⋮ menu → **Cast, save, and share** → **Install page as app**.
+
+Chrome only offers installation from a secure context, and plain-HTTP `*.local` hostnames are not one. These work:
+
+- `http://localhost:8080`
+- `http://standup.buddy.localhost:8080`: Chrome resolves `*.localhost` to your machine with no hosts entry, and it is a secure context.
+
+Over `standup.buddy.local` you can still use **Create shortcut…** with **Open as window**, but not a full install.
+
 ## Keyboard shortcuts
 
 Single keys work anywhere except while typing in a field, so they never collide with browser shortcuts such as `⌘N`, `⌘T`, `⌘S` or `⌘J`. Press `?` in the app for the full list.
