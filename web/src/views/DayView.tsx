@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KIND_LABEL, POINT_KINDS, type DayRecord, type PointKind, type Project } from '../types';
 import { Icon } from '../components/Icon';
 import { errMsg, fmtLong, parseDate, useToast } from '../components/ui';
+import { onDayAction } from '../shortcuts';
 import { StandupTab } from './StandupTab';
 import { StreamTab } from './StreamTab';
 import { WrapTab } from './WrapTab';
@@ -28,13 +29,14 @@ function greeting(date: string, count: number, status: DayRecord['status']): { p
 interface DayViewProps {
   day: DayRecord;
   projects: Project[];
-  focusSignal: number;
+  focusRequested: boolean;
+  onFocusHandled: () => void;
   reload: () => Promise<void>;
   setDay: (d: DayRecord) => void;
   onCreateProject: (name: string) => Promise<Project>;
 }
 
-export function DayView({ day, projects, focusSignal, reload, setDay, onCreateProject }: DayViewProps) {
+export function DayView({ day, projects, focusRequested, onFocusHandled, reload, setDay, onCreateProject }: DayViewProps) {
   const toast = useToast();
   const [tab, setTab] = useState<Tab>('stream');
   const [job, setJob] = useState<Job>('idle');
@@ -65,6 +67,30 @@ export function DayView({ day, projects, focusSignal, reload, setDay, onCreatePr
       toast(errMsg(e), true);
     }
   };
+
+  const canCollate = job === 'idle' && day.entries.length > 0 && day.status !== 'finalized';
+  const canFinalize = job === 'idle' && day.points.length > 0;
+
+  // Keyboard shortcuts (tabs, collate, finalize) arrive as events; re-subscribed each render so they see current state.
+  useEffect(
+    () =>
+      onDayAction((action) => {
+        if (action.type === 'tab') setTab(action.tab);
+        else if (action.type === 'collate' && canCollate) void run('collating', 'standup');
+        else if (action.type === 'finalize' && canFinalize) void run('finalizing', 'wrap');
+      }),
+  );
+
+  // "New note" shortcut: show the Stream tab, then focus its composer once it is mounted.
+  useEffect(() => {
+    if (!focusRequested) return;
+    setTab('stream');
+    const timer = setTimeout(() => {
+      document.getElementById('stream-composer')?.focus();
+      onFocusHandled();
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [focusRequested, onFocusHandled]);
 
   const count = (k: PointKind) => day.points.filter((p) => p.kind === k).length;
   const g = greeting(day.date, day.entries.length, day.status);
@@ -123,7 +149,7 @@ export function DayView({ day, projects, focusSignal, reload, setDay, onCreatePr
       </div>
 
       {tab === 'stream' && (
-        <StreamTab day={day} projects={projects} focusSignal={focusSignal} onChanged={reload} onCreateProject={onCreateProject} />
+        <StreamTab day={day} projects={projects} onChanged={reload} onCreateProject={onCreateProject} />
       )}
       {tab === 'standup' &&
         (day.points.length === 0 ? (

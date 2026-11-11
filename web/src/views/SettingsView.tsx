@@ -141,7 +141,7 @@ export function SettingsView() {
   ];
 
   return (
-    <div className="page" style={{ maxWidth: 860 }}>
+    <div className="page">
       <div>
         <h1 style={{ fontSize: 38 }}>Settings</h1>
         <div className="muted">Keys, models and the notes agent's tools.</div>

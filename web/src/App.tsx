@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DayRecord, DaySummary, Project } from './types';
 import { ChatPopup } from './components/ChatPopup';
 import { Icon } from './components/Icon';
+import { ShortcutHelp } from './components/ShortcutHelp';
+import { useShortcuts, type ShortcutActions } from './hooks/useShortcuts';
+import { MOD_KEY } from './shortcuts';
 import { errMsg, fmtLong, fmtShort, localDate, shiftDate, useToast } from './components/ui';
 import { DayView } from './views/DayView';
 import { HistoryView } from './views/HistoryView';
@@ -78,7 +81,8 @@ export function App() {
   const [today, setToday] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
-  const [focusSignal, setFocusSignal] = useState(0);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [focusRequested, setFocusRequested] = useState(false);
   const { day, days, projects, reload, updateDay } = useAppData(date);
 
   useEffect(() => {
@@ -87,32 +91,48 @@ export function App() {
     setDate(t);
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setChatOpen((o) => !o);
-        return;
-      }
-      // "/" jumps to the stream composer, like quick capture.
-      const el = e.target as HTMLElement | null;
-      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
-      if (e.key === '/' && !typing && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
-        setView('day');
-        setDate((d) => (today && d !== today ? today : d));
-        setFocusSignal((n) => n + 1);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [today]);
+
 
   const createProject = useCallback(async (name: string) => {
     const p = await api.createProject(name);
     await reload();
     return p;
   }, [reload]);
+
+  const shortcuts = useMemo<ShortcutActions>(
+    () => ({
+      toggleChat: () => setChatOpen((o) => !o),
+      closeOverlays: () => {
+        if (helpOpen) setHelpOpen(false);
+        else setChatOpen(false);
+      },
+      newNote: () => {
+        setView('day');
+        if (today) setDate(today);
+        setFocusRequested(true);
+      },
+      goToday: () => {
+        setView('day');
+        if (today) setDate(today);
+      },
+      goHistory: () => setView('history'),
+      goProjects: () => setView('projects'),
+      goSettings: () => setView('settings'),
+      prevDay: () => {
+        setView('day');
+        setDate((d) => (d ? shiftDate(d, -1) : d));
+      },
+      nextDay: () => {
+        setView('day');
+        setDate((d) => (d ? shiftDate(d, 1) : d));
+      },
+      showHelp: () => setHelpOpen(true),
+    }),
+    [today, helpOpen],
+  );
+  useShortcuts(shortcuts);
+
+  const handleFocusHandled = useCallback(() => setFocusRequested(false), []);
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -190,21 +210,22 @@ export function App() {
               {date !== today && <button className="btn btn-ghost btn-sm" onClick={() => setDate(today)}>Today</button>}
             </div>
           ) : <span />}
-          <span className="muted small">Press / to capture</span>
+          <button className="hint-btn" onClick={() => setHelpOpen(true)}>Press <kbd>?</kbd> for shortcuts</button>
         </div>
         <div className="scroll">
           {view === 'day' && day && (
-            <DayView key={day.date} day={day} projects={projects} focusSignal={focusSignal} reload={reload} setDay={updateDay} onCreateProject={createProject} />
+            <DayView key={day.date} day={day} projects={projects} focusRequested={focusRequested} onFocusHandled={handleFocusHandled} reload={reload} setDay={updateDay} onCreateProject={createProject} />
           )}
           {view === 'history' && <HistoryView days={days} onOpen={openDay} />}
           {view === 'projects' && <ProjectsView projects={projects} onChanged={reload} />}
           {view === 'settings' && <SettingsView />}
         </div>
       </main>
+      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
       {chatOpen ? (
         <ChatPopup onClose={() => setChatOpen(false)} />
       ) : (
-        <button className="chat-fab" aria-label="Ask your notes (⌘K)" data-tip="Ask your notes  ⌘K" onClick={() => setChatOpen(true)}>
+        <button className="chat-fab" aria-label={`Ask your notes (${MOD_KEY}+K)`} data-tip={`Ask your notes  ${MOD_KEY}K`} onClick={() => setChatOpen(true)}>
           <Icon name="sparkle" size={24} />
         </button>
       )}

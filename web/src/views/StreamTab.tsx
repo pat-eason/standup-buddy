@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { DayRecord, Project, StreamEntry } from '../types';
 import { Icon } from '../components/Icon';
 import { ProjectPicker, ProjectTags, errMsg, fmtTime, useToast } from '../components/ui';
@@ -7,23 +7,18 @@ import { api } from '../api';
 interface StreamTabProps {
   day: DayRecord;
   projects: Project[];
-  focusSignal: number;
   onChanged: () => Promise<void>;
   onCreateProject: (name: string) => Promise<Project>;
 }
 
 const EMPTY_IDS: number[] = [];
 
-function Composer({ day, projects, focusSignal, onChanged, onCreateProject }: StreamTabProps) {
+function Composer({ day, projects, onChanged, onCreateProject }: StreamTabProps) {
   const toast = useToast();
   const [text, setText] = useState('');
   const [ids, setIds] = useState<number[]>(EMPTY_IDS);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const busy = useRef(false);
-
-  useEffect(() => {
-    areaRef.current?.focus();
-  }, [focusSignal]);
 
   const add = async () => {
     if (busy.current || !text.trim()) return;
@@ -43,6 +38,7 @@ function Composer({ day, projects, focusSignal, onChanged, onCreateProject }: St
   return (
     <div className="card composer">
       <textarea
+        id="stream-composer"
         ref={areaRef}
         className="textarea"
         value={text}
@@ -54,6 +50,7 @@ function Composer({ day, projects, focusSignal, onChanged, onCreateProject }: St
             e.preventDefault();
             void add();
           }
+          if (e.key === 'Escape') e.currentTarget.blur();
         }}
       />
       <div className="composer-foot">
@@ -181,7 +178,7 @@ export function StreamTab(props: StreamTabProps) {
           {day.entries.length === 0 ? (
             <div className="empty">
               <h3>Nothing logged yet</h3>
-              <div>Jot things down as they happen. Press <b>/</b> from anywhere to jump here.</div>
+              <div>Jot things down as they happen. Press <b>N</b> from anywhere to jump here.</div>
             </div>
           ) : (
             [...day.entries].reverse().map((e) => (

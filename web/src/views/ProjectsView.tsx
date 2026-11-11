@@ -78,7 +78,7 @@ export function ProjectsView({ projects, onChanged }: { projects: Project[]; onC
   };
 
   return (
-    <div className="page" style={{ maxWidth: 860 }}>
+    <div className="page">
       <div>
         <h1 style={{ fontSize: 38 }}>Projects</h1>
         <div className="muted">Tag stream entries and standup points so the agent can search by project.</div>
