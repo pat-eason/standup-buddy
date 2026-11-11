@@ -26,7 +26,7 @@ cp .env.example .env      # optional: set ANTHROPIC_API_KEY and change the secre
 docker compose up --build
 ```
 
-Open <http://localhost:8080>. If you did not put a key in `.env`, add it under **Settings**. It is stored AES-256-GCM encrypted in Postgres, keyed by `APP_SECRET`.
+Open <http://standup.buddy.localhost:8080> (or <http://localhost:8080>). Chrome resolves `*.localhost` to your machine with no hosts entry, and treats it as a secure origin, so there is no "Not secure" warning and the app can be installed. If you did not put a key in `.env`, add it under **Settings**. It is stored AES-256-GCM encrypted in Postgres, keyed by `APP_SECRET`.
 
 The app has **no login** and is bound to `127.0.0.1` on purpose. Do not expose it to a network as is.
 
@@ -34,14 +34,12 @@ Stop it with `docker compose down`. Your data lives in the `pgdata` volume; add 
 
 ## Install as an app (PWA)
 
-Standup Buddy is an installable PWA: web manifest, icons and a service worker that keeps the UI shell available offline (data requests always go to the network). In Chrome use **Install** in the address bar, or the ⋮ menu → **Cast, save, and share** → **Install page as app**.
+Standup Buddy is an installable PWA: web manifest, icons and a service worker that keeps the UI shell available offline (data requests always go to the network).
 
-Chrome only offers installation from a secure context, and plain-HTTP `*.local` hostnames are not one. These work:
+1. Open **<http://standup.buddy.localhost:8080>** in Chrome.
+2. Click **Install** in the address bar, or ⋮ → **Cast, save, and share** → **Install page as app**.
 
-- `http://localhost:8080`
-- `http://standup.buddy.localhost:8080`: Chrome resolves `*.localhost` to your machine with no hosts entry, and it is a secure context.
-
-Over `standup.buddy.local` you can still use **Create shortcut…** with **Open as window**, but not a full install.
+Use the `.localhost` address (or `localhost`) rather than a custom `*.local` name. Chrome only offers installation, and only hides the "Not secure" warning, on a secure origin, and plain-HTTP `*.local` hostnames are not one. They also hit a slow mDNS lookup on macOS. Installs from different addresses are separate apps, so pick one.
 
 ## Keyboard shortcuts
 
