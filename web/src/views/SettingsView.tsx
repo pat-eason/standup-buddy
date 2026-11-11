@@ -192,7 +192,7 @@ export function SettingsView() {
         <div className="card card-pad">
           <h3 className="card-title"><Icon name="edit" size={20} /> Prompts</h3>
           <Field name="About you" hint="Role, team, vocabulary. Added to every agent.">
-            <PromptField label="About you" value={settings.userContext} onSave={(v) => void patch({ userContext: v })} placeholder="e.g. Staff engineer on the platform team. Tickets look like PLAT-123." />
+            <PromptField label="About you" value={settings.userContext} onSave={(v) => void patch({ userContext: v })} placeholder="e.g. Backend engineer on the payments team. Tickets look like ABC-123." />
           </Field>
           <Field name="Collation style" hint="Extra rules for how points are written">
             <PromptField label="Collation instructions" value={settings.collateInstructions} onSave={(v) => void patch({ collateInstructions: v })} placeholder="e.g. Always lead updates with the ticket key." />
