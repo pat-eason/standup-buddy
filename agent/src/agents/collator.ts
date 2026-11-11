@@ -10,6 +10,8 @@ const CollationInput = v.object({
     v.object({
       kind: v.picklist(['update', 'question', 'decision', 'parking']),
       text: v.string(),
+      group: v.string(),
+      why: v.string(),
       projects: v.optional(v.array(v.string())),
       sources: v.optional(v.array(v.number())),
     }),
@@ -45,7 +47,9 @@ Rules:
 - Keep concrete details exactly as written: ticket keys, PR numbers, service names, people, numbers.
 - Never invent facts, owners or outcomes. If an entry is ambiguous, keep it faithful to the wording.
 - An entry may produce zero, one or several points. Trivia with no standup value can be dropped.
-- Order updates by importance, then questions, decisions and parking.
+- "group": a short theme (1-3 words) that clusters related points across kinds. Aim for 2-4 groups for the whole day, each holding several points; a group with a single point is a last resort. Prefer the project or work stream ("Touchstone", "Dedup gate", "Loupe") over a per-point topic, never make two groups for the same project, and reuse names from "Groups already in use".
+- "why": one or two plain sentences saying why this point is on the board, as a talking point the user can lean on in standup. It must add something the point text does not already say: the context, the impact, who or what is blocked, the ask of the room, or the next step. Never just restate the point. Ground it only in the stream entries; do not invent facts, people or outcomes. If the entries give nothing more, say why it matters in a few words.
+- Order points so that points of the same group sit together; order updates by importance, then questions, decisions and parking.
 - "projects": use only names from the provided project list (exact spelling); leave empty when none apply.
 - "sources": the numeric ids of the stream entries each point came from.
 - Points already on the board ("kept points") stay as they are: do not output them again or restate them.

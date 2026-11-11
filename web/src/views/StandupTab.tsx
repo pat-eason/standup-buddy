@@ -108,7 +108,7 @@ function PointRow({ point, projects, onChanged }: { point: Point; projects: Proj
         >
           <Icon name="check" size={14} strokeWidth={2.4} />
         </button>
-        <div style={{ minWidth: 0 }}>
+        <div className="point-body">
           {editing ? (
             <textarea
               autoFocus
@@ -134,6 +134,7 @@ function PointRow({ point, projects, onChanged }: { point: Point; projects: Proj
               {point.text}
             </div>
           )}
+          <WhyLine point={point} onSave={(rationale) => patch({ rationale })} />
           <div className="point-meta">
             <ProjectTags ids={point.projectIds} projects={projects} />
             {tagging && (
@@ -143,26 +144,97 @@ function PointRow({ point, projects, onChanged }: { point: Point; projects: Proj
               <Icon name="note" size={14} />
               {point.notes.length ? `${point.notes.length} note${point.notes.length > 1 ? 's' : ''}` : 'Add note'}
             </button>
+            <div className="point-actions">
+              <select
+                className="select kind-select"
+                aria-label="Change type"
+                value={point.kind}
+                onChange={(e) => void patch({ kind: e.target.value as PointKind })}
+              >
+                {POINT_KINDS.map((k) => (
+                  <option key={k} value={k}>{KIND_SINGULAR[k]}</option>
+                ))}
+              </select>
+              <button className="icon-btn" aria-label="Edit projects" onClick={() => setTagging((t) => !t)}><Icon name="folder" size={16} /></button>
+              <button className="icon-btn danger" aria-label="Delete point" onClick={() => void remove()}><Icon name="trash" size={16} /></button>
+            </div>
           </div>
-        </div>
-        <div className="point-actions">
-          <select
-            className="select kind-select"
-            aria-label="Change type"
-            value={point.kind}
-            onChange={(e) => void patch({ kind: e.target.value as PointKind })}
-          >
-            {POINT_KINDS.map((k) => (
-              <option key={k} value={k}>{KIND_SINGULAR[k]}</option>
-            ))}
-          </select>
-          <button className="icon-btn" aria-label="Edit projects" onClick={() => setTagging((t) => !t)}><Icon name="folder" size={16} /></button>
-          <button className="icon-btn danger" aria-label="Delete point" onClick={() => void remove()}><Icon name="trash" size={16} /></button>
         </div>
       </div>
       {open && <NoteThread point={point} onChanged={onChanged} />}
     </div>
   );
+}
+
+/** Why the point is on the board, as a talking point for standup. Click to edit. */
+function WhyLine({ point, onSave }: { point: Point; onSave: (rationale: string) => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(point.rationale);
+
+  if (!point.rationale && !editing) return null;
+
+  const commit = async () => {
+    setEditing(false);
+    if (text.trim() !== point.rationale) await onSave(text);
+  };
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        className="textarea ptext-edit why-edit"
+        rows={2}
+        value={text}
+        aria-label="Edit why"
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => void commit()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            void commit();
+          }
+          if (e.key === 'Escape') {
+            setText(point.rationale);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+  return (
+    <div
+      className="why"
+      role="button"
+      tabIndex={0}
+      title="Click to edit"
+      onClick={() => {
+        setText(point.rationale);
+        setEditing(true);
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && setEditing(true)}
+    >
+      <Icon name="why" size={14} />
+      <span>{point.rationale}</span>
+    </div>
+  );
+}
+
+interface PointGroup {
+  label: string;
+  items: Point[];
+}
+
+/** Groups in order of first appearance; ungrouped points go last under "Other" when groups exist. */
+function groupPoints(points: Point[]): PointGroup[] {
+  const map = new Map<string, Point[]>();
+  for (const p of points) {
+    const key = p.group.trim();
+    map.set(key, [...(map.get(key) ?? []), p]);
+  }
+  const groups = [...map.entries()].filter(([k]) => k !== '').map(([label, items]) => ({ label, items }));
+  const ungrouped = map.get('');
+  if (ungrouped) groups.push({ label: groups.length > 0 ? 'Other' : '', items: ungrouped });
+  return groups;
 }
 
 function Section({
@@ -204,8 +276,18 @@ function Section({
         <span className="n">{points.length}</span>
       </div>
       {points.length === 0 && <div className="muted small" style={{ padding: '2px 20px 10px' }}>Nothing here.</div>}
-      {points.map((p) => (
-        <PointRow key={p.id} point={p} projects={projects} onChanged={onChanged} />
+      {groupPoints(points).map((g) => (
+        <div key={g.label || 'ungrouped'}>
+          {g.label && (
+            <div className="group-head">
+              <span>{g.label}</span>
+              <span className="n">{g.items.length}</span>
+            </div>
+          )}
+          {g.items.map((p) => (
+            <PointRow key={p.id} point={p} projects={projects} onChanged={onChanged} />
+          ))}
+        </div>
       ))}
       <div className="add-line">
         <input
@@ -250,13 +332,52 @@ function MeetingNotes({ day, onChanged }: { day: DayRecord; onChanged: () => Pro
   );
 }
 
+type KindFilter = PointKind | 'all';
+
+const FILTER_LABEL: Record<PointKind, string> = {
+  update: 'Updates',
+  question: 'Questions',
+  decision: 'Decisions',
+  parking: 'Parking lot',
+};
+
+/** Category counts that double as a filter while walking through the board. */
+function CategoryFilter({ points, value, onChange }: { points: Point[]; value: KindFilter; onChange: (k: KindFilter) => void }) {
+  const count = (k: PointKind) => points.filter((p) => p.kind === k).length;
+  const left = (k: PointKind) => points.filter((p) => p.kind === k && !p.discussed).length;
+  return (
+    <div className="filter-bar" role="group" aria-label="Filter by category">
+      <button className={`filter-chip ${value === 'all' ? 'on' : ''}`} aria-pressed={value === 'all'} onClick={() => onChange('all')}>
+        All
+        <span className="count">{points.length}</span>
+      </button>
+      {POINT_KINDS.map((k) => (
+        <button
+          key={k}
+          className={`filter-chip kind-${k} ${value === k ? 'on' : ''}`}
+          aria-pressed={value === k}
+          title={`${left(k)} of ${count(k)} still to discuss`}
+          onClick={() => onChange(value === k ? 'all' : k)}
+        >
+          <Icon name={k} size={15} />
+          {FILTER_LABEL[k]}
+          <span className="count">{count(k)}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function StandupTab({ day, projects, onChanged, onFinalize, finalizing }: StandupTabProps) {
+  const [filter, setFilter] = useState<KindFilter>('all');
   const total = day.points.length;
   const discussed = day.points.filter((p) => p.discussed).length;
   const fresh = day.entries.filter((e) => day.collatedAt && e.createdAt > day.collatedAt).length;
 
   return (
-    <div className="two-col">
+    <div className="standup">
+      <CategoryFilter points={day.points} value={filter} onChange={setFilter} />
+      <div className="two-col">
       <div className="board">
         {fresh > 0 && (
           <div className="banner">
@@ -264,7 +385,7 @@ export function StandupTab({ day, projects, onChanged, onFinalize, finalizing }:
             <span><b>{fresh} new stream {fresh === 1 ? 'entry' : 'entries'}</b> since the last collation. Collate again to fold them in; your edits and notes are kept.</span>
           </div>
         )}
-        {POINT_KINDS.map((k) => (
+        {POINT_KINDS.filter((k) => filter === 'all' || k === filter).map((k) => (
           <Section key={k} kind={k} points={day.points.filter((p) => p.kind === k)} day={day} projects={projects} onChanged={onChanged} />
         ))}
       </div>
@@ -283,6 +404,7 @@ export function StandupTab({ day, projects, onChanged, onFinalize, finalizing }:
           </button>
         </div>
         <MeetingNotes key={day.date} day={day} onChanged={onChanged} />
+      </div>
       </div>
     </div>
   );

@@ -7,8 +7,8 @@ A web app for daily standups. Log a stream of consciousness through the day, tag
 ## What it does
 
 - **Stream.** Jot things down as they happen and tag each entry to one or more projects.
-- **Collate.** One click turns the day's stream into four lists: updates, outstanding questions, decision points and a parking lot. Re-collating keeps anything you edited, checked off, annotated or added yourself.
-- **Standup.** Run the meeting from the board. Check points off as they are discussed and add timestamped notes to each one, plus a free-form meeting notepad.
+- **Collate.** One click turns the day's stream into four lists: updates, outstanding questions, decision points and a parking lot. Points are grouped under short themes, and each carries a **why** note: a talking point explaining why it is on the board, grounded in your stream entries (click it to edit). Re-collating keeps anything you edited, checked off, annotated or added yourself.
+- **Standup.** Run the meeting from the board. A category bar with counts (All, Updates, Questions, Decisions, Parking lot) filters it as you walk through. Check points off as they are discussed and add timestamped notes to each one, plus a free-form meeting notepad.
 - **Finalize.** After the standup, the LLM folds your notes into a summary with decisions made, action items, follow-ups and carry-over. Copy it as Markdown.
 - **Days.** Every day is stored on its own: its stream, collated points, notes and summary. Browse and search them under History.
 - **Ask your notes.** A chat agent searches everything you have recorded and answers with the day cited. Conversations are multi-turn and persist.

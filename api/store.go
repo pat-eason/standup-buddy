@@ -118,6 +118,15 @@ func (s *Store) UpdateProject(ctx context.Context, id int64, p projectPatch) (Pr
 	return out, err
 }
 
+// clip truncates to n runes.
+func clip(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
 func deref(s *string) string {
 	if s == nil {
 		return ""
@@ -182,7 +191,7 @@ func getDay(ctx context.Context, q dbtx, date string) (DayRecord, error) {
 	}
 	rows.Close()
 
-	rows, err = q.Query(ctx, `SELECT p.id, p.kind, p.text, p.position, p.origin, p.edited, p.discussed, p.source_entry_ids,
+	rows, err = q.Query(ctx, `SELECT p.id, p.kind, p.text, p.position, p.origin, p.edited, p.discussed, p.group_label, p.rationale, p.source_entry_ids,
 			COALESCE((SELECT array_agg(project_id ORDER BY project_id) FROM point_projects WHERE point_id = p.id), '{}')
 		FROM points p WHERE p.day = $1::date ORDER BY p.position, p.id`, date)
 	if err != nil {
@@ -191,7 +200,7 @@ func getDay(ctx context.Context, q dbtx, date string) (DayRecord, error) {
 	index := map[int64]int{}
 	for rows.Next() {
 		p := Point{Day: date, Notes: []PointNote{}}
-		if err := rows.Scan(&p.ID, &p.Kind, &p.Text, &p.Position, &p.Origin, &p.Edited, &p.Discussed, &p.SourceEntryIDs, &p.ProjectIDs); err != nil {
+		if err := rows.Scan(&p.ID, &p.Kind, &p.Text, &p.Position, &p.Origin, &p.Edited, &p.Discussed, &p.Group, &p.Rationale, &p.SourceEntryIDs, &p.ProjectIDs); err != nil {
 			rows.Close()
 			return d, err
 		}
@@ -389,6 +398,8 @@ type pointPatch struct {
 	Kind       *string  `json:"kind"`
 	ProjectIDs *[]int64 `json:"projectIds"`
 	Discussed  *bool    `json:"discussed"`
+	Group      *string  `json:"group"`
+	Rationale  *string  `json:"rationale"`
 }
 
 func (s *Store) UpdatePoint(ctx context.Context, id int64, p pointPatch) error {
@@ -411,9 +422,19 @@ func (s *Store) UpdatePoint(ctx context.Context, id int64, p pointPatch) error {
 		if p.Kind != nil {
 			newKind = *p.Kind
 		}
-		changed := newText != curText || newKind != curKind || p.ProjectIDs != nil
+		changed := newText != curText || newKind != curKind || p.ProjectIDs != nil || p.Group != nil || p.Rationale != nil
+		var group, rationale *string
+		if p.Group != nil {
+			g := clip(strings.TrimSpace(*p.Group), 60)
+			group = &g
+		}
+		if p.Rationale != nil {
+			r := strings.TrimSpace(*p.Rationale)
+			rationale = &r
+		}
 		if _, err := tx.Exec(ctx, `UPDATE points SET text = $2, kind = $3, discussed = COALESCE($4, discussed),
-			edited = edited OR $5, updated_at = now() WHERE id = $1`, id, newText, newKind, p.Discussed, changed); err != nil {
+			group_label = COALESCE($6, group_label), rationale = COALESCE($7, rationale),
+			edited = edited OR $5, updated_at = now() WHERE id = $1`, id, newText, newKind, p.Discussed, changed, group, rationale); err != nil {
 			return err
 		}
 		if p.ProjectIDs != nil {
@@ -431,6 +452,8 @@ func (s *Store) DeletePoint(ctx context.Context, id int64) error {
 type collatedPoint struct {
 	Kind           string
 	Text           string
+	Group          string
+	Rationale      string
 	ProjectIDs     []int64
 	SourceEntryIDs []int64
 }
@@ -456,8 +479,9 @@ func (s *Store) ApplyCollation(ctx context.Context, date string, points []collat
 				p.SourceEntryIDs = []int64{}
 			}
 			var id int64
-			if err := tx.QueryRow(ctx, `INSERT INTO points (day, kind, text, position, origin, source_entry_ids)
-				VALUES ($1::date, $2, $3, $4, 'ai', $5) RETURNING id`, date, p.Kind, p.Text, pos, p.SourceEntryIDs).Scan(&id); err != nil {
+			if err := tx.QueryRow(ctx, `INSERT INTO points (day, kind, text, group_label, rationale, position, origin, source_entry_ids)
+				VALUES ($1::date, $2, $3, $4, $5, $6, 'ai', $7) RETURNING id`,
+				date, p.Kind, p.Text, p.Group, p.Rationale, pos, p.SourceEntryIDs).Scan(&id); err != nil {
 				return err
 			}
 			if err := setLinks(ctx, tx, "point_projects", "point_id", id, p.ProjectIDs); err != nil {
@@ -609,10 +633,10 @@ func (s *Store) Search(ctx context.Context, o searchOptions) ([]SearchHit, error
 	rows.Close()
 
 	// points
-	rows, err = s.pool.Query(ctx, `SELECT to_char(p.day, 'YYYY-MM-DD'), p.kind, p.text, p.created_at,
+	rows, err = s.pool.Query(ctx, `SELECT to_char(p.day, 'YYYY-MM-DD'), p.kind, p.text, p.rationale, p.created_at,
 			COALESCE((SELECT array_agg(project_id) FROM point_projects WHERE point_id = p.id), '{}')
 		FROM points p
-		WHERE (cardinality($1::text[]) = 0 OR p.text ILIKE ANY($1))
+		WHERE (cardinality($1::text[]) = 0 OR p.text ILIKE ANY($1) OR p.rationale ILIKE ANY($1))
 		  AND ($2::date IS NULL OR p.day >= $2::date) AND ($3::date IS NULL OR p.day <= $3::date)
 		ORDER BY p.day DESC LIMIT 300`, patterns, from, to)
 	if err != nil {
@@ -621,13 +645,18 @@ func (s *Store) Search(ctx context.Context, o searchOptions) ([]SearchHit, error
 	for rows.Next() {
 		var h SearchHit
 		var ids []int64
+		var why string
 		h.Type = "point"
-		if err := rows.Scan(&h.Day, &h.Kind, &h.Text, &h.At, &ids); err != nil {
+		if err := rows.Scan(&h.Day, &h.Kind, &h.Text, &why, &h.At, &ids); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		h.Projects = names(ids, byID)
-		hits = append(hits, scoredHit{h, scoreText(h.Text, tokens) + 0.2})
+		sc := scoreText(h.Text+" "+why, tokens) + 0.2
+		if why != "" {
+			h.Text += "  (why: " + why + ")"
+		}
+		hits = append(hits, scoredHit{h, sc})
 	}
 	rows.Close()
 

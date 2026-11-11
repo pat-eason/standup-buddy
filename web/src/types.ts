@@ -49,6 +49,8 @@ export interface Point {
   origin: 'ai' | 'manual';
   edited: boolean;
   discussed: boolean;
+  group: string;
+  rationale: string;
   projectIds: number[];
   sourceEntryIds: number[];
   notes: PointNote[];

@@ -51,6 +51,9 @@ func (s *Server) dayMarkdown(ctx context.Context, date string) (string, error) {
 				wrote = true
 			}
 			fmt.Fprintf(&b, "- %s%s\n", p.Text, tag(p.ProjectIDs))
+			if p.Rationale != "" {
+				fmt.Fprintf(&b, "  - Why: %s\n", p.Rationale)
+			}
 			for _, n := range p.Notes {
 				fmt.Fprintf(&b, "  - Note: %s\n", n.Text)
 			}

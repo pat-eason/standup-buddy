@@ -61,6 +61,8 @@ export function NotesAssistant() {
               points: day.points.map((p: any) => ({
                 kind: p.kind,
                 text: p.text,
+                group: p.group,
+                why: p.rationale,
                 discussed: p.discussed,
                 projects: nm(p.projectIds),
                 notes: p.notes.map((n: any) => n.text),

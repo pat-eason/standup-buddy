@@ -64,6 +64,8 @@ type collationResult struct {
 	Points []struct {
 		Kind     string   `json:"kind"`
 		Text     string   `json:"text"`
+		Group    string   `json:"group"`
+		Why      string   `json:"why"`
 		Projects []string `json:"projects"`
 		Sources  []int64  `json:"sources"`
 	} `json:"points"`
@@ -132,13 +134,16 @@ func (s *Server) collateDay(ctx context.Context, date string) error {
 	kept := []string{}
 	for _, p := range day.Points {
 		if p.Origin != "ai" || p.Edited || p.Discussed || len(p.Notes) > 0 {
-			kept = append(kept, fmt.Sprintf("- [%s] %s", p.Kind, p.Text))
+			kept = append(kept, fmt.Sprintf("- [%s] (group: %s) %s", p.Kind, orDash(p.Group), p.Text))
 		}
 	}
 	if len(kept) > 0 {
 		fmt.Fprintf(&b, "\nKept points already on the board (do not repeat):\n%s\n", strings.Join(kept, "\n"))
 	} else {
 		b.WriteString("\nKept points already on the board: none\n")
+	}
+	if groups := existingGroups(day.Points); len(groups) > 0 {
+		fmt.Fprintf(&b, "\nGroups already in use (reuse these names where the theme matches): %s\n", strings.Join(groups, ", "))
 	}
 	b.WriteString("\nCollate this into the standup board and call submit_collation.")
 
@@ -175,7 +180,14 @@ func (s *Server) collateDay(ctx context.Context, date string) error {
 		for id := range ids {
 			pids = append(pids, id)
 		}
-		points = append(points, collatedPoint{Kind: p.Kind, Text: text, ProjectIDs: pids, SourceEntryIDs: sources})
+		points = append(points, collatedPoint{
+			Kind:           p.Kind,
+			Text:           text,
+			Group:          clip(strings.TrimSpace(p.Group), 60),
+			Rationale:      strings.TrimSpace(p.Why),
+			ProjectIDs:     pids,
+			SourceEntryIDs: sources,
+		})
 	}
 	return s.store.ApplyCollation(ctx, date, points)
 }
@@ -218,6 +230,9 @@ func (s *Server) finalizeDay(ctx context.Context, date string) error {
 			tag = " (" + strings.Join(tags, ", ") + ")"
 		}
 		fmt.Fprintf(&b, "- [%s]%s %s\n", flag, tag, p.Text)
+		if p.Rationale != "" {
+			fmt.Fprintf(&b, "    context: %s\n", p.Rationale)
+		}
 		for _, n := range p.Notes {
 			fmt.Fprintf(&b, "    note: %s\n", n.Text)
 		}
@@ -240,4 +255,24 @@ func (s *Server) finalizeDay(ctx context.Context, date string) error {
 		return errors.New("the model returned an empty summary")
 	}
 	return s.store.SaveFinalization(ctx, date, f)
+}
+
+func orDash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "-"
+	}
+	return s
+}
+
+func existingGroups(points []Point) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, p := range points {
+		g := strings.TrimSpace(p.Group)
+		if g != "" && !seen[strings.ToLower(g)] {
+			seen[strings.ToLower(g)] = true
+			out = append(out, g)
+		}
+	}
+	return out
 }

@@ -36,6 +36,8 @@ type Point struct {
 	Origin         string      `json:"origin"`
 	Edited         bool        `json:"edited"`
 	Discussed      bool        `json:"discussed"`
+	Group          string      `json:"group"`
+	Rationale      string      `json:"rationale"`
 	ProjectIDs     []int64     `json:"projectIds"`
 	SourceEntryIDs []int64     `json:"sourceEntryIds"`
 	Notes          []PointNote `json:"notes"`

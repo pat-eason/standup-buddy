@@ -149,9 +149,22 @@ kbd { font-family: var(--font-sans); font-size: 11px; font-weight: 600; backgrou
     radial-gradient(700px 500px at 0% 100%, rgba(255,255,255,.45), transparent 60%),
     linear-gradient(160deg, #d6efe3 0%, var(--primary) 60%, #b4e0ca 100%);
 }
-.topbar { height: 56px; flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 28px; }
+.topbar { position: absolute; top: 0; left: 0; right: 0; z-index: 20; height: 56px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 0 28px; pointer-events: none; }
+.topbar > * { pointer-events: auto; }
+/* Content scrolls under the bar: a tinted blur that fades out toward the content. */
+.topbar::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; bottom: -28px; z-index: -1; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(214, 239, 227, .92) 0%, rgba(214, 239, 227, .62) 55%, rgba(214, 239, 227, 0) 100%);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 52%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 52%, transparent 100%);
+}
 .topbar > :last-child { justify-self: end; }
-.scroll { flex: 1; overflow-y: auto; scrollbar-gutter: stable; padding: 4px 28px 104px; }
+.page-title { font-size: 38px; }
+/* Shown in the bar once the page's own heading has scrolled under it. */
+.topbar-title { font-family: var(--font-serif); font-size: 19px; font-weight: 500; letter-spacing: -0.01em; color: var(--secondary); opacity: 0; transform: translateY(6px); transition: opacity .2s ease, transform .2s ease; white-space: nowrap; }
+.topbar-title.visible { opacity: 1; transform: none; }
+.scroll { flex: 1; overflow-y: auto; scrollbar-gutter: stable; padding: 60px 28px 104px; }
 /* One content width for every view; narrower than the viewport so the side gutters match everywhere. */
 .page { --page-max: 860px; width: 100%; max-width: var(--page-max); margin: 0 auto; display: flex; flex-direction: column; gap: 22px; container-type: inline-size; }
 
@@ -269,17 +282,40 @@ button.chip:hover { border-color: var(--secondary-40); }
 .section-head h3 { font-size: 20px; }
 .section-head .n { font-size: 12px; font-weight: 600; color: var(--secondary-60); background: rgba(255,255,255,.7); border-radius: 999px; padding: 1px 9px; }
 .point { padding: 10px 20px; border-top: 1px solid var(--secondary-08); }
-.point-main { display: grid; grid-template-columns: 24px 1fr auto; gap: 12px; align-items: start; }
+.point-main { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 12px; align-items: start; }
+.point-body { min-width: 0; }
 .check { width: 22px; height: 22px; border-radius: 8px; border: 1.8px solid var(--secondary-40); display: grid; place-items: center; margin-top: 1px; color: transparent; transition: all .15s; background: rgba(255,255,255,.7); }
 .check:hover { border-color: var(--secondary); }
 .check.on { background: var(--secondary); border-color: var(--secondary); color: var(--primary); }
 .point.done .ptext { color: var(--secondary-60); }
-.ptext { cursor: text; border-radius: 8px; padding: 1px 4px; margin: -1px -4px; word-break: break-word; }
+.ptext { display: block; width: 100%; cursor: text; border-radius: 8px; padding: 1px 4px; margin: -1px -4px; word-break: break-word; }
 .ptext:hover { background: rgba(255,255,255,.55); }
 .ptext-edit { width: 100%; }
 .point-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; align-items: center; }
+.point-meta .point-actions { margin-left: auto; }
 .point-actions { display: flex; gap: 2px; align-items: center; opacity: .0; transition: opacity .15s; }
 .point:hover .point-actions, .point.open .point-actions { opacity: 1; }
+/* Category filter between the tab toggle and the board. */
+.standup { display: flex; flex-direction: column; gap: 18px; }
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 14px; font-weight: 600; font-size: 13px; color: var(--secondary); background: var(--glass); border: 1px solid var(--glass-border); transition: background .15s, color .15s, transform .12s; }
+.filter-chip:hover { background: var(--glass-strong); transform: translateY(-1px); }
+.filter-chip svg { color: var(--secondary-60); }
+.filter-chip .count { min-width: 22px; text-align: center; font-size: 12px; padding: 0 7px; border-radius: 999px; background: var(--secondary-08); }
+.filter-chip.on { background: var(--secondary); color: var(--primary-50); border-color: var(--secondary); }
+.filter-chip.on svg { color: var(--primary); }
+.filter-chip.on .count { background: rgba(191, 230, 211, .2); }
+.filter-chip.kind-question:not(.on) .count { background: var(--accent-soft); color: var(--accent-strong); }
+
+/* Grouping and the "why" talking point on a collated row. */
+.group-head { display: flex; align-items: center; gap: 8px; padding: 14px 20px 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--secondary-60); border-top: 1px solid var(--secondary-08); }
+.group-head .n { font-size: 11px; background: rgba(255,255,255,.7); border-radius: 999px; padding: 0 8px; letter-spacing: 0; }
+.group-head + .point { border-top: 0; }
+.section-head + div > .group-head { border-top: 0; }
+.why { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; padding: 7px 11px; border-radius: 12px; background: rgba(255,255,255,.6); border-left: 3px solid var(--primary-500); font-size: 13px; line-height: 1.45; color: var(--secondary-80); cursor: text; }
+.why svg { flex: none; margin-top: 2px; color: var(--primary-500); }
+.why:hover { background: rgba(255,255,255,.85); }
+.why-edit { margin-top: 6px; font-size: 13px; }
 .note-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--secondary-60); padding: 3px 9px; border-radius: 8px; transition: background .15s; }
 .note-btn:hover { background: var(--secondary-08); color: var(--secondary); }
 .note-btn.has { color: var(--secondary); background: rgba(255,255,255,.7); }
@@ -416,7 +452,7 @@ button.chip:hover { border-color: var(--secondary-40); }
   .topbar { padding: 0 16px; height: 52px; }
   .topbar > :first-child, .topbar > :last-child { display: none; }
   .topbar { grid-template-columns: 1fr; justify-items: center; }
-  .scroll { padding: 4px 16px 96px; }
+  .scroll { padding: 56px 16px 96px; }
   .page { gap: 18px; }
   .chat-fab { right: 16px; bottom: 16px; width: 54px; height: 54px; }
   .chat { right: 12px; bottom: 12px; width: min(430px, calc(100vw - 24px)); height: min(640px, calc(100dvh - 24px)); }
@@ -443,7 +479,7 @@ button.chip:hover { border-color: var(--secondary-40); }
   .nav-text { display: none; }
   .nav-item { padding: 9px 11px; }
   .brand-full { font-size: 17px; }
-  .scroll { padding: 4px 12px 92px; }
+  .scroll { padding: 56px 12px 92px; }
   .topbar { padding: 0 12px; }
   .datenav .label { min-width: 0; padding: 0 6px; }
   .hero { border-radius: 22px; }
@@ -459,7 +495,7 @@ button.chip:hover { border-color: var(--secondary-40); }
   .entry .time { grid-column: 1 / -1; padding: 0; }
   .point { padding: 10px 14px; }
   .point-main { grid-template-columns: 24px minmax(0, 1fr); }
-  .point-actions { grid-column: 2; justify-content: flex-start; margin-top: 4px; }
+  .point-meta .point-actions { margin-left: 0; }
   .notes { margin-left: 10px; }
   .section-head { padding: 12px 14px 6px; }
   .add-line { padding: 8px 14px 12px; }

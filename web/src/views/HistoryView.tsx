@@ -3,6 +3,7 @@ import type { DaySummary, SearchHit } from '../types';
 import { Icon } from '../components/Icon';
 import { errMsg, fmtShort, useToast } from '../components/ui';
 import { api } from '../api';
+import { PageTitle } from '../components/PageTitle';
 
 const TYPE_LABEL: Record<SearchHit['type'], string> = {
   stream: 'Stream',
@@ -50,7 +51,7 @@ export function HistoryView({ days, onOpen }: { days: DaySummary[]; onOpen: (dat
   return (
     <div className="page">
       <div>
-        <h1 style={{ fontSize: 38 }}>History</h1>
+        <PageTitle title="History" />
         <div className="muted">Every standup, stored by day.</div>
       </div>
       <div style={{ position: 'relative' }}>

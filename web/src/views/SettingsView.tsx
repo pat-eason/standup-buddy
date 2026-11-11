@@ -3,6 +3,7 @@ import { MODEL_OPTIONS, type AppInfo, type AppSettings, type SettingsPatch, type
 import { Icon } from '../components/Icon';
 import { Toggle, errMsg, useToast } from '../components/ui';
 import { api } from '../api';
+import { PageTitle } from '../components/PageTitle';
 
 const THINKING: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high'];
 
@@ -143,7 +144,7 @@ export function SettingsView() {
   return (
     <div className="page">
       <div>
-        <h1 style={{ fontSize: 38 }}>Settings</h1>
+        <PageTitle title="Settings" />
         <div className="muted">Keys, models and the notes agent's tools.</div>
       </div>
       <div className="settings-grid">

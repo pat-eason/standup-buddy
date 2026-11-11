@@ -3,6 +3,7 @@ import type { Project } from '../types';
 import { Icon } from '../components/Icon';
 import { errMsg, useToast } from '../components/ui';
 import { api } from '../api';
+import { PageTitle } from '../components/PageTitle';
 
 const SWATCHES = ['#ff5a5f', '#173b4f', '#4f9c7e', '#e0a93b', '#7567c9', '#3f93c2', '#c26a9b'];
 
@@ -80,7 +81,7 @@ export function ProjectsView({ projects, onChanged }: { projects: Project[]; onC
   return (
     <div className="page">
       <div>
-        <h1 style={{ fontSize: 38 }}>Projects</h1>
+        <PageTitle title="Projects" />
         <div className="muted">Tag stream entries and standup points so the agent can search by project.</div>
       </div>
       <div className="card card-pad row">

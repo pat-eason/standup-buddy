@@ -54,7 +54,7 @@ export const api = {
     request<void>('POST', `/days/${date}/points`, { kind, text, projectIds }),
   updatePoint: (
     id: number,
-    patch: { text?: string; kind?: PointKind; projectIds?: number[]; discussed?: boolean },
+    patch: { text?: string; kind?: PointKind; projectIds?: number[]; discussed?: boolean; group?: string; rationale?: string },
   ) => request<void>('PATCH', `/points/${id}`, patch),
   deletePoint: (id: number) => request<void>('DELETE', `/points/${id}`),
   addNote: (pointId: number, text: string) => request<void>('POST', `/points/${pointId}/notes`, { text }),

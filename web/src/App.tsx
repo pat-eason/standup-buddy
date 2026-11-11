@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DayRecord, DaySummary, Project } from './types';
 import { ChatPopup } from './components/ChatPopup';
 import { Icon } from './components/Icon';
+import { TopbarTitleProvider, type TopbarTitle } from './components/PageTitle';
 import { ShortcutHelp } from './components/ShortcutHelp';
 import { useShortcuts, type ShortcutActions } from './hooks/useShortcuts';
 import { MOD_KEY } from './shortcuts';
@@ -82,6 +83,7 @@ export function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [pageTitle, setPageTitle] = useState<TopbarTitle | null>(null);
   const [focusRequested, setFocusRequested] = useState(false);
   const { day, days, projects, reload, updateDay } = useAppData(date);
 
@@ -209,9 +211,14 @@ export function App() {
               <button className="icon-btn" aria-label="Next day" onClick={() => setDate(shiftDate(date, 1))}><Icon name="right" size={16} /></button>
               {date !== today && <button className="btn btn-ghost btn-sm" onClick={() => setDate(today)}>Today</button>}
             </div>
-          ) : <span />}
+          ) : (
+            <span className={`topbar-title ${pageTitle?.hidden ? 'visible' : ''}`} aria-hidden={!pageTitle?.hidden}>
+              {pageTitle?.text}
+            </span>
+          )}
           <button className="hint-btn" onClick={() => setHelpOpen(true)}>Press <kbd>?</kbd> for shortcuts</button>
         </div>
+        <TopbarTitleProvider report={setPageTitle}>
         <div className="scroll">
           {view === 'day' && day && (
             <DayView key={day.date} day={day} projects={projects} focusRequested={focusRequested} onFocusHandled={handleFocusHandled} reload={reload} setDay={updateDay} onCreateProject={createProject} />
@@ -220,6 +227,7 @@ export function App() {
           {view === 'projects' && <ProjectsView projects={projects} onChanged={reload} />}
           {view === 'settings' && <SettingsView />}
         </div>
+        </TopbarTitleProvider>
       </main>
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
       {chatOpen ? (
