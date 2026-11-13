@@ -127,6 +127,7 @@ function DueBadge({ due, done }: { due: string; done: boolean }) {
   );
 }
 
+const STRIKE_MS = 320;
 const SLIDE_OUT_MS = 220;
 const COLLAPSE_MS = 200;
 const COLLAPSE_PROPS = ['height', 'paddingTop', 'paddingBottom', 'borderBottomWidth'] as const;
@@ -135,8 +136,10 @@ const COLLAPSE_PROPS = ['height', 'paddingTop', 'paddingBottom', 'borderBottomWi
  * Slides the row right while it fades, then collapses its height so the rows below close
  * the gap. Resolves with a function that undoes it (used if the delete request fails).
  */
+const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 async function animateRowOut(el: HTMLElement): Promise<() => void> {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => undefined;
+  if (prefersReducedMotion()) return () => undefined;
   const style = getComputedStyle(el);
   const from = Object.fromEntries(COLLAPSE_PROPS.map((p) => [p, style[p]]));
   const to = Object.fromEntries(COLLAPSE_PROPS.map((p) => [p, '0px']));
@@ -209,6 +212,8 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // Between the click on the checkbox and the row leaving: the title is being struck through.
+  const [striking, setStriking] = useState(false);
   const leavingRef = useRef(false);
   const project = projects.find((p) => p.id === todo.projectId);
 
@@ -224,6 +229,33 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
         undo();
         setLeaving(false);
         setConfirmingDelete(false);
+      }
+    } finally {
+      leavingRef.current = false;
+    }
+  };
+
+  /** Completing strikes the title off, then the row leaves like a deleted one; un-completing is immediate. */
+  const toggleDone = async () => {
+    if (todo.done) {
+      await update(todo.id, { done: false });
+      return;
+    }
+    const el = rowRef.current;
+    if (leavingRef.current || !el) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    try {
+      if (!prefersReducedMotion()) {
+        setStriking(true);
+        await new Promise((resolve) => setTimeout(resolve, STRIKE_MS));
+      }
+      const undo = await animateRowOut(el);
+      // On success the row unmounts from the open list; if the request failed, bring it back.
+      if (!(await update(todo.id, { done: true }))) {
+        undo();
+        setStriking(false);
+        setLeaving(false);
       }
     } finally {
       leavingRef.current = false;
@@ -264,19 +296,19 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
     <li
       ref={rowRef}
       data-urgency={todo.done ? undefined : todo.urgency}
-      className={`todo ${todo.done ? 'done' : ''} ${pulseKey !== null ? 'pulse' : ''} ${leaving ? 'leaving' : ''}`}>
+      className={`todo ${todo.done ? 'done' : ''} ${striking ? 'striking' : ''} ${pulseKey !== null ? 'pulse' : ''} ${leaving ? 'leaving' : ''}`}>
       <button
         type="button"
         role="checkbox"
-        aria-checked={todo.done}
+        aria-checked={todo.done || striking}
         aria-label={todo.done ? `Mark "${todo.title}" not done` : `Mark "${todo.title}" done`}
         className="todo-check"
-        onClick={() => void update(todo.id, { done: !todo.done })}
+        onClick={() => void toggleDone()}
       >
-        {todo.done && <Icon name="check" size={13} />}
+        {(todo.done || striking) && <Icon name="check" size={13} />}
       </button>
       <div className="todo-main">
-        <div className="todo-title">{todo.title}</div>
+        <div className="todo-title"><span className="todo-title-text">{todo.title}</span></div>
         {todo.description && <TodoDescription text={todo.description} />}
         {(project || todo.dueDate || !todo.done) && (
           <div className="todo-meta">

@@ -617,15 +617,21 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
 .todo-form-actions { display: flex; align-items: center; gap: 8px; }
 .todo-body { flex: 1; overflow-y: auto; padding: 8px 14px 24px; }
 .todo-empty { padding: 20px 4px; }
-.todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .todo { display: flex; align-items: flex-start; gap: 10px; padding: 10px 8px; margin: 0 -8px; border-radius: 10px; border-bottom: 1px solid var(--secondary-08); }
 .todo.editing { display: block; }
-.todo-check { flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 7px; border: 1.5px solid var(--secondary-40); display: grid; place-items: center; color: var(--primary-50); background: #fff; }
-.todo.done .todo-check { background: var(--secondary); border-color: var(--secondary); }
+.todo-check { flex: none; align-self: center; width: 20px; height: 20px; border-radius: 7px; border: 1.5px solid var(--secondary-40); display: grid; place-items: center; color: var(--primary-50); background: #fff; }
+.todo.done .todo-check, .todo.striking .todo-check { background: var(--secondary); border-color: var(--secondary); }
+.todo-check { transition: background .15s, border-color .15s; }
 .todo-check:hover { border-color: var(--secondary); }
 .todo-main { flex: 1; min-width: 0; }
 .todo-title { font-weight: 500; overflow-wrap: anywhere; }
 .todo.done .todo-title { text-decoration: line-through; color: var(--secondary-60); }
+/* The strike is a line that draws across each line of the title, like crossing it off a list. */
+.todo-title-text { background: linear-gradient(currentColor, currentColor) no-repeat 0 58% / 0% 1.5px; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background-size .32s ease-out; }
+.todo.striking .todo-title-text { background-size: 100% 1.5px; }
+.todo.striking .todo-main { opacity: .55; transition: opacity .32s; }
+@media (prefers-reduced-motion: reduce) { .todo-title-text, .todo.striking .todo-main { transition: none; } }
 .todo-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; min-height: 22px; }
 .todo-due { font-size: 12px; color: var(--secondary-60); }
 .todo-due.overdue { color: var(--accent-strong); font-weight: 600; }
@@ -701,7 +707,7 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
 .todo[data-urgency='3'] { background: linear-gradient(90deg, rgba(246, 153, 58, .18), rgba(246, 153, 58, 0) 85%); }
 .todo[data-urgency='4'] { background: linear-gradient(90deg, rgba(242, 101, 58, .24), rgba(246, 153, 58, .06) 90%); }
 .todo[data-urgency='5'] { background: linear-gradient(90deg, rgba(238, 70, 76, .3), rgba(246, 153, 58, .1) 95%); }
-.todo[data-urgency='4'], .todo[data-urgency='5'] { border-bottom-color: transparent; }
+.todo[data-urgency]:not([data-urgency='1']) { border-bottom-color: transparent; }
 
 .urgency-picker { display: flex; align-items: center; gap: 4px; }
 .urgency-opt { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; border: 1.5px solid transparent; opacity: .5; transition: opacity .12s, background .12s; }
