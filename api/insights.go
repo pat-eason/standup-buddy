@@ -30,17 +30,22 @@ type Totals struct {
 	Discussed  int `json:"discussed"`
 	Notes      int `json:"notes"`
 	ActiveDays int `json:"activeDays"`
+	// Todos are tracked apart from standup activity: they do not make a day "active".
+	TodosCreated   int `json:"todosCreated"`
+	TodosCompleted int `json:"todosCompleted"`
 }
 
 type DayMetrics struct {
-	Date      string `json:"date"`
-	Entries   int    `json:"entries"`
-	Updates   int    `json:"updates"`
-	Questions int    `json:"questions"`
-	Decisions int    `json:"decisions"`
-	Parking   int    `json:"parking"`
-	Discussed int    `json:"discussed"`
-	Notes     int    `json:"notes"`
+	Date           string `json:"date"`
+	Entries        int    `json:"entries"`
+	Updates        int    `json:"updates"`
+	Questions      int    `json:"questions"`
+	Decisions      int    `json:"decisions"`
+	Parking        int    `json:"parking"`
+	Discussed      int    `json:"discussed"`
+	Notes          int    `json:"notes"`
+	TodosCreated   int    `json:"todosCreated"`
+	TodosCompleted int    `json:"todosCompleted"`
 	// DeltaUpdates is the change in accomplished items versus the previous
 	// active day in the range; nil for the first active day and for idle days.
 	DeltaUpdates *int `json:"deltaUpdates"`
@@ -133,7 +138,9 @@ func (s *Store) dailyMetrics(ctx context.Context, from, to string) ([]DayMetrics
 			(SELECT count(*) FROM points p WHERE p.day = g.d AND p.kind = 'decision'),
 			(SELECT count(*) FROM points p WHERE p.day = g.d AND p.kind = 'parking'),
 			(SELECT count(*) FROM points p WHERE p.day = g.d AND p.discussed),
-			(SELECT count(*) FROM point_notes n JOIN points p ON p.id = n.point_id WHERE p.day = g.d)
+			(SELECT count(*) FROM point_notes n JOIN points p ON p.id = n.point_id WHERE p.day = g.d),
+			(SELECT count(*) FROM todos t WHERE t.created_at >= g.d AND t.created_at < g.d + 1),
+			(SELECT count(*) FROM todos t WHERE t.done AND t.completed_at >= g.d AND t.completed_at < g.d + 1)
 		FROM (SELECT d::date AS d FROM generate_series($1::date, $2::date, interval '1 day') d) g
 		ORDER BY g.d`, from, to)
 	if err != nil {
@@ -144,7 +151,7 @@ func (s *Store) dailyMetrics(ctx context.Context, from, to string) ([]DayMetrics
 	var lastActive *DayMetrics
 	for rows.Next() {
 		var d DayMetrics
-		if err := rows.Scan(&d.Date, &d.Entries, &d.Updates, &d.Questions, &d.Decisions, &d.Parking, &d.Discussed, &d.Notes); err != nil {
+		if err := rows.Scan(&d.Date, &d.Entries, &d.Updates, &d.Questions, &d.Decisions, &d.Parking, &d.Discussed, &d.Notes, &d.TodosCreated, &d.TodosCompleted); err != nil {
 			return nil, err
 		}
 		// Compare with the previous day that had activity, so a skipped day or a
@@ -175,6 +182,8 @@ func sumDays(days []DayMetrics) Totals {
 		t.Parking += d.Parking
 		t.Discussed += d.Discussed
 		t.Notes += d.Notes
+		t.TodosCreated += d.TodosCreated
+		t.TodosCompleted += d.TodosCompleted
 		if d.active() {
 			t.ActiveDays++
 		}

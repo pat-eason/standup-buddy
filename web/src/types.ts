@@ -68,6 +68,8 @@ export interface SuggestedTodo {
   dueDate?: string;
 }
 
+export type TodoSource = 'manual' | 'action_item' | 'suggested';
+
 export interface Todo {
   id: number;
   title: string;
@@ -76,6 +78,7 @@ export interface Todo {
   dueDate: string | null;
   done: boolean;
   completedAt: string | null;
+  source: TodoSource;
   sourceDay: string | null;
   createdAt: string;
 }
@@ -86,6 +89,7 @@ export interface TodoInput {
   projectId?: number | null;
   dueDate?: string | null;
   sourceDay?: string | null;
+  source?: TodoSource;
 }
 
 export interface TodoPatch {
@@ -187,6 +191,8 @@ export interface Totals {
   discussed: number;
   notes: number;
   activeDays: number;
+  todosCreated: number;
+  todosCompleted: number;
 }
 
 export interface DayMetrics {
@@ -198,6 +204,8 @@ export interface DayMetrics {
   parking: number;
   discussed: number;
   notes: number;
+  todosCreated: number;
+  todosCompleted: number;
   deltaUpdates: number | null;
 }
 

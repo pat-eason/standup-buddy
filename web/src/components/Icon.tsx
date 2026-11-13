@@ -34,6 +34,7 @@ const paths: Record<string, ReactNode> = {
   sidebar: <><rect x="3.5" y="4.5" width="17" height="15" rx="3.5" /><path d="M9.5 4.5v15" /></>,
   why: <><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1V16h5v-.1c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" /></>,
   todo: <><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8.5 12.5l2.5 2.5 4.5-5" /></>,
+  pin: <><path d="M9 4h6l-1 5.5 3 3V14H7v-1.5l3-3z" /><path d="M12 14v6" /></>,
   external: <><path d="M14 4.5h5.5V10M19.5 4.5L11 13" /><path d="M18 14v3.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2H10" /></>,
 };
 

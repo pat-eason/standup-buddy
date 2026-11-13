@@ -1,8 +1,9 @@
-import { useId, useRef, useState, type FormEvent } from 'react';
-import type { Project, Todo, TodoInput } from '../types';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import type { Project, Todo, TodoInput, TodoSource } from '../types';
+import { PREF_FRIENDLY_DATES, usePreference } from '../hooks/usePreference';
 import { useTodos } from '../hooks/useTodos';
 import { Icon } from './Icon';
-import { fmtShort, localDate } from './ui';
+import { fmtFull, fmtShort, fmtTime, friendlyDate, localDate } from './ui';
 
 interface TodoFormValues {
   title: string;
@@ -108,14 +109,123 @@ function TodoForm({ initial, projects, submitLabel, expanded = false, autoFocus 
 }
 
 function DueBadge({ due, done }: { due: string; done: boolean }) {
-  const overdue = !done && due < localDate();
-  return <span className={`todo-due ${overdue ? 'overdue' : ''}`}>{overdue ? 'Overdue · ' : 'Due '}{fmtShort(due)}</span>;
+  const [friendly] = usePreference(PREF_FRIENDLY_DATES, true);
+  const today = localDate();
+  const overdue = !done && due < today;
+  const text = friendly ? friendlyDate(due, today) : fmtShort(due);
+  return (
+    <span className={`todo-due ${overdue ? 'overdue' : ''}`} title={friendly ? fmtFull(due) : undefined}>
+      {overdue ? 'Overdue · ' : 'Due '}
+      {text}
+    </span>
+  );
 }
 
-function TodoRow({ todo, projects }: { todo: Todo; projects: Project[] }) {
-  const { update, remove } = useTodos();
+const SLIDE_OUT_MS = 220;
+const COLLAPSE_MS = 200;
+const COLLAPSE_PROPS = ['height', 'paddingTop', 'paddingBottom', 'borderBottomWidth'] as const;
+
+/**
+ * Slides the row right while it fades, then collapses its height so the rows below close
+ * the gap. Resolves with a function that undoes it (used if the delete request fails).
+ */
+async function animateRowOut(el: HTMLElement): Promise<() => void> {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => undefined;
+  const style = getComputedStyle(el);
+  const from = Object.fromEntries(COLLAPSE_PROPS.map((p) => [p, style[p]]));
+  const to = Object.fromEntries(COLLAPSE_PROPS.map((p) => [p, '0px']));
+  const slide = el.animate(
+    [{ transform: 'translateX(0)', opacity: 1 }, { transform: 'translateX(56px)', opacity: 0 }],
+    { duration: SLIDE_OUT_MS, easing: 'ease-in', fill: 'forwards' },
+  );
+  await slide.finished;
+  el.style.overflow = 'hidden';
+  const collapse = el.animate([from, to], { duration: COLLAPSE_MS, easing: 'ease-in-out', fill: 'forwards' });
+  await collapse.finished;
+  return () => {
+    slide.cancel();
+    collapse.cancel();
+    el.style.overflow = '';
+  };
+}
+
+const SOURCE_LABEL: Record<TodoSource, string> = {
+  manual: 'Added manually',
+  action_item: 'From an action item',
+  suggested: 'Suggested in the standup',
+};
+
+/** Where the todo came from; todos created from a standup link back to that day's wrap-up. */
+function TodoSourceLine({ todo, onOpenDay }: { todo: Todo; onOpenDay: (date: string) => void }) {
+  const label = SOURCE_LABEL[todo.source];
+  const day = todo.sourceDay;
+  return (
+    <div className="todo-source">
+      {label}
+      {day && (
+        <>
+          {' · '}
+          <button type="button" className="todo-source-link" title="Open this standup's wrap-up" onClick={() => onOpenDay(day)}>
+            {fmtShort(day)}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Two lines of the description; click to expand or collapse when it is longer than that. */
+function TodoDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  // Measures the rendered text, so it can only run after layout.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && !expanded) setOverflows(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  const body = <span ref={ref} className={`todo-desc-text ${expanded ? '' : 'clamped'}`}>{text}</span>;
+  if (!overflows && !expanded) return <div className="todo-desc">{body}</div>;
+  return (
+    <button type="button" className="todo-desc expandable" aria-expanded={expanded} title={expanded ? 'Collapse' : 'Expand'} onClick={() => setExpanded((e) => !e)}>
+      {body}
+    </button>
+  );
+}
+
+function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[]; onOpenDay: (date: string) => void }) {
+  const { update, remove, highlight } = useTodos();
+  const rowRef = useRef<HTMLLIElement>(null);
+  const pulseKey = highlight?.id === todo.id ? highlight.key : null;
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const leavingRef = useRef(false);
   const project = projects.find((p) => p.id === todo.projectId);
+
+  const confirmDelete = async () => {
+    const el = rowRef.current;
+    if (leavingRef.current || !el) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    try {
+      const undo = await animateRowOut(el);
+      // On success the row unmounts; if the request failed, bring it back.
+      if (!(await remove(todo.id))) {
+        undo();
+        setLeaving(false);
+        setConfirmingDelete(false);
+      }
+    } finally {
+      leavingRef.current = false;
+    }
+  };
+
+  useEffect(() => {
+    if (pulseKey !== null) rowRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [pulseKey]);
 
   if (editing) {
     return (
@@ -143,7 +253,7 @@ function TodoRow({ todo, projects }: { todo: Todo; projects: Project[] }) {
   }
 
   return (
-    <li className={`todo ${todo.done ? 'done' : ''}`}>
+    <li ref={rowRef} className={`todo ${todo.done ? 'done' : ''} ${pulseKey !== null ? 'pulse' : ''} ${leaving ? 'leaving' : ''}`}>
       <button
         type="button"
         role="checkbox"
@@ -156,7 +266,7 @@ function TodoRow({ todo, projects }: { todo: Todo; projects: Project[] }) {
       </button>
       <div className="todo-main">
         <div className="todo-title">{todo.title}</div>
-        {todo.description && <div className="todo-desc">{todo.description}</div>}
+        {todo.description && <TodoDescription text={todo.description} />}
         {(project || todo.dueDate) && (
           <div className="todo-meta">
             {project && (
@@ -165,25 +275,54 @@ function TodoRow({ todo, projects }: { todo: Todo; projects: Project[] }) {
             {todo.dueDate && <DueBadge due={todo.dueDate} done={todo.done} />}
           </div>
         )}
+        <TodoSourceLine todo={todo} onOpenDay={onOpenDay} />
+        {todo.done && todo.completedAt && (
+          <div className="todo-completed">Completed {fmtShort(todo.completedAt.slice(0, 10))} · {fmtTime(todo.completedAt)}</div>
+        )}
+        {confirmingDelete && (
+          <div className="todo-confirm" role="alertdialog" aria-label={`Delete "${todo.title}"?`}>
+            <span>Delete this todo?</span>
+            <button type="button" className="btn btn-sm btn-danger" disabled={leaving} onClick={() => void confirmDelete()}>Delete</button>
+            <button type="button" className="btn btn-ghost btn-sm" autoFocus onClick={() => setConfirmingDelete(false)}>Cancel</button>
+          </div>
+        )}
       </div>
-      <div className="todo-actions">
-        <button type="button" className="icon-btn" aria-label={`Edit "${todo.title}"`} onClick={() => setEditing(true)}><Icon name="edit" size={15} /></button>
-        <button type="button" className="icon-btn danger" aria-label={`Delete "${todo.title}"`} onClick={() => void remove(todo.id)}><Icon name="trash" size={15} /></button>
-      </div>
+      {!confirmingDelete && (
+        <div className="todo-actions">
+          <button type="button" className="icon-btn" aria-label={`Edit "${todo.title}"`} onClick={() => setEditing(true)}><Icon name="edit" size={15} /></button>
+          <button type="button" className="icon-btn danger" aria-label={`Delete "${todo.title}"`} onClick={() => setConfirmingDelete(true)}><Icon name="trash" size={15} /></button>
+        </div>
+      )}
     </li>
   );
 }
 
 interface TodoDrawerProps {
+  open: boolean;
   projects: Project[];
+  /** The user wants the drawer docked beside the content (only offered when `canPin`). */
+  pinned: boolean;
+  canPin: boolean;
+  onTogglePin: () => void;
   onClose: () => void;
+  /** Opens the wrap-up of a standup day (the target of a todo's source link). */
+  onOpenDay: (date: string) => void;
 }
 
-/** Right-hand drawer for managing the todo list. Open/closed state lives in the app shell. */
-export function TodoDrawer({ projects, onClose }: TodoDrawerProps) {
+/**
+ * Right-hand drawer for managing the todo list. Always mounted so it can slide out as
+ * well as in; open state and layout (pushing content aside when pinned) live in the shell.
+ */
+export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClose, onOpenDay }: TodoDrawerProps) {
   const { todos, add } = useTodos();
-  const open = todos.filter((t) => !t.done);
+  const rootRef = useRef<HTMLElement>(null);
+  const openTodos = todos.filter((t) => !t.done);
   const done = todos.filter((t) => t.done);
+  const docked = open && pinned;
+
+  useEffect(() => {
+    if (open) rootRef.current?.querySelector<HTMLInputElement>('.todo-add input')?.focus();
+  }, [open]);
 
   const create = async (v: TodoFormValues) => {
     const input: TodoInput = {
@@ -196,33 +335,47 @@ export function TodoDrawer({ projects, onClose }: TodoDrawerProps) {
   };
 
   return (
-    <aside className="todo-drawer" role="dialog" aria-label="Todos">
-      <div className="todo-head">
-        <h4>Todos</h4>
-        <span className="badge open">{open.length} open</span>
-        <span className="spacer" />
-        <button className="icon-btn" aria-label="Close todos" onClick={onClose}><Icon name="x" size={17} /></button>
-      </div>
-      <div className="todo-add">
-        <TodoForm initial={EMPTY_FORM} projects={projects} submitLabel="Add" autoFocus onSubmit={create} />
-      </div>
-      <div className="todo-body">
-        {open.length === 0 ? (
-          <div className="todo-empty muted small">Nothing to do. Add a todo above, or quick-add one from a standup summary.</div>
-        ) : (
-          <ul className="todo-list">
-            {open.map((t) => <TodoRow key={t.id} todo={t} projects={projects} />)}
-          </ul>
-        )}
-        {done.length > 0 && (
-          <details className="todo-done">
-            <summary>Completed recently ({done.length})</summary>
+    <>
+      {open && !pinned && <div className="todo-backdrop" aria-hidden onMouseDown={onClose} />}
+      <aside ref={rootRef} className={`todo-drawer ${open ? 'open' : ''} ${docked ? 'docked' : ''}`} role="dialog" aria-label="Todos" inert={!open}>
+        <div className="todo-head">
+          <h4>Todos</h4>
+          <span className="badge open">{openTodos.length} open</span>
+          <span className="spacer" />
+          {canPin && (
+            <button
+              className={`icon-btn pin-btn ${pinned ? 'on' : ''}`}
+              aria-label={pinned ? 'Unpin todos' : 'Pin todos beside the page'}
+              aria-pressed={pinned}
+              title={pinned ? 'Unpin' : 'Pin beside the page'}
+              onClick={onTogglePin}
+            >
+              <Icon name="pin" size={16} />
+            </button>
+          )}
+          <button className="icon-btn" aria-label="Close todos" onClick={onClose}><Icon name="x" size={17} /></button>
+        </div>
+        <div className="todo-add">
+          <TodoForm initial={EMPTY_FORM} projects={projects} submitLabel="Add" onSubmit={create} />
+        </div>
+        <div className="todo-body">
+          {openTodos.length === 0 ? (
+            <div className="todo-empty muted small">Nothing to do. Add a todo above, or quick-add one from a standup summary.</div>
+          ) : (
             <ul className="todo-list">
-              {done.map((t) => <TodoRow key={t.id} todo={t} projects={projects} />)}
+              {openTodos.map((t) => <TodoRow key={t.id} todo={t} projects={projects} onOpenDay={onOpenDay} />)}
             </ul>
-          </details>
-        )}
-      </div>
-    </aside>
+          )}
+          {done.length > 0 && (
+            <details className="todo-done">
+              <summary>Completed recently ({done.length})</summary>
+              <ul className="todo-list">
+                {done.map((t) => <TodoRow key={t.id} todo={t} projects={projects} onOpenDay={onOpenDay} />)}
+              </ul>
+            </details>
+          )}
+        </div>
+      </aside>
+    </>
   );
 }

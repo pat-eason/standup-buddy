@@ -18,16 +18,18 @@ type Todo struct {
 	DueDate     *string    `json:"dueDate"`
 	Done        bool       `json:"done"`
 	CompletedAt *time.Time `json:"completedAt"`
-	SourceDay   *string    `json:"sourceDay"`
-	CreatedAt   time.Time  `json:"createdAt"`
+	// Source is manual, action_item or suggested; SourceDay is the standup it came from.
+	Source    string    `json:"source"`
+	SourceDay *string   `json:"sourceDay"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 const todoCols = `id, title, description, project_id, to_char(due_date, 'YYYY-MM-DD'), done, completed_at,
-	to_char(source_day, 'YYYY-MM-DD'), created_at`
+	source, to_char(source_day, 'YYYY-MM-DD'), created_at`
 
 func scanTodo(row pgx.Row) (Todo, error) {
 	var t Todo
-	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.ProjectID, &t.DueDate, &t.Done, &t.CompletedAt, &t.SourceDay, &t.CreatedAt)
+	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.ProjectID, &t.DueDate, &t.Done, &t.CompletedAt, &t.Source, &t.SourceDay, &t.CreatedAt)
 	return t, err
 }
 
@@ -84,7 +86,10 @@ type todoInput struct {
 	ProjectID   *int64  `json:"projectId"`
 	DueDate     *string `json:"dueDate"`
 	SourceDay   *string `json:"sourceDay"`
+	Source      string  `json:"source"`
 }
+
+var todoSources = map[string]bool{"manual": true, "action_item": true, "suggested": true}
 
 func cleanDate(d *string) (*string, error) {
 	if d == nil || strings.TrimSpace(*d) == "" {
@@ -109,9 +114,16 @@ func (s *Store) CreateTodo(ctx context.Context, in todoInput) (Todo, error) {
 	if err != nil {
 		return Todo{}, err
 	}
-	return scanTodo(s.pool.QueryRow(ctx, `INSERT INTO todos (title, description, project_id, due_date, source_day)
-		VALUES ($1, $2, $3, $4::date, $5::date) RETURNING `+todoCols,
-		title, strings.TrimSpace(in.Description), in.ProjectID, due, src))
+	source := in.Source
+	if source == "" || src == nil {
+		source = "manual"
+	}
+	if !todoSources[source] {
+		return Todo{}, bad("unknown todo source %q", source)
+	}
+	return scanTodo(s.pool.QueryRow(ctx, `INSERT INTO todos (title, description, project_id, due_date, source_day, source)
+		VALUES ($1, $2, $3, $4::date, $5::date, $6) RETURNING `+todoCols,
+		title, strings.TrimSpace(in.Description), in.ProjectID, due, src, source))
 }
 
 // todoPatch uses explicit "clear" flags because null and absent look the same once decoded.

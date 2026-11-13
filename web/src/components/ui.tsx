@@ -140,3 +140,27 @@ export const fmtShort = (date: string) =>
   parseDate(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 export const fmtTime = (iso: string) =>
   new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+export const fmtFull = (date: string) =>
+  parseDate(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+const MS_PER_DAY = 86_400_000;
+
+/** Whole days from `from` to `to` (both YYYY-MM-DD); negative when `to` is earlier. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((parseDate(to).getTime() - parseDate(from).getTime()) / MS_PER_DAY);
+}
+
+/** "today", "tomorrow", "Friday", "next Friday", "3 days ago", or "Nov 20" for anything farther out. */
+export function friendlyDate(date: string, today: string): string {
+  const diff = daysBetween(today, date);
+  const weekday = parseDate(date).toLocaleDateString(undefined, { weekday: 'long' });
+  if (diff === 0) return 'today';
+  if (diff === 1) return 'tomorrow';
+  if (diff === -1) return 'yesterday';
+  if (diff >= 2 && diff <= 6) return weekday;
+  if (diff >= 7 && diff <= 13) return `next ${weekday}`;
+  if (diff <= -2 && diff >= -13) return `${-diff} days ago`;
+  const sameYear = parseDate(date).getFullYear() === parseDate(today).getFullYear();
+  return parseDate(date).toLocaleDateString(undefined, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+}

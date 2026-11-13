@@ -65,6 +65,22 @@ export function StatCards({ metrics }: { metrics: MetricsReport }) {
   );
 }
 
+/** Todos created and completed in the range, with the per-day split in each card's hint. */
+export function TodoStats({ metrics }: { metrics: MetricsReport }) {
+  const { totals: t, previous: p } = metrics;
+  const perDay = (pick: (d: DayMetrics) => number) =>
+    metrics.days
+      .filter((d) => pick(d) > 0)
+      .map((d) => `${dayName(d.date)} ${pick(d)}`)
+      .join(' · ');
+  return (
+    <div className="stats stats-half">
+      <Stat label="Todos created" value={t.todosCreated} before={p.todosCreated} hint={perDay((d) => d.todosCreated) || undefined} />
+      <Stat label="Todos completed" value={t.todosCompleted} before={p.todosCompleted} hint={perDay((d) => d.todosCompleted) || undefined} />
+    </div>
+  );
+}
+
 function dayName(date: string): string {
   return parseDate(date).toLocaleDateString(undefined, { weekday: 'short' });
 }

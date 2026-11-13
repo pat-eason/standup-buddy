@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { KIND_LABEL, POINT_KINDS, type DayRecord, type PointKind, type Project } from '../types';
 import { Icon } from '../components/Icon';
 import { errMsg, fmtLong, parseDate, useToast } from '../components/ui';
-import { onDayAction } from '../shortcuts';
+import { onDayAction, type DayTab } from '../shortcuts';
 import { StandupTab } from './StandupTab';
 import { StreamTab } from './StreamTab';
 import { WrapTab } from './WrapTab';
 import { api } from '../api';
 
-type Tab = 'stream' | 'standup' | 'wrap';
+type Tab = DayTab;
 type Job = 'idle' | 'collating' | 'finalizing';
 
 const TILE_CLASS: Record<PointKind, string> = {
@@ -34,11 +34,18 @@ interface DayViewProps {
   reload: () => Promise<void>;
   setDay: (d: DayRecord) => void;
   onCreateProject: (name: string) => Promise<Project>;
+  /** Tab to start on, e.g. when arriving from a todo's source link. */
+  initialTab?: Tab;
+  onInitialTabHandled: () => void;
 }
 
-export function DayView({ day, projects, focusRequested, onFocusHandled, reload, setDay, onCreateProject }: DayViewProps) {
+export function DayView({ day, projects, focusRequested, onFocusHandled, reload, setDay, onCreateProject, initialTab, onInitialTabHandled }: DayViewProps) {
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>('stream');
+  const [tab, setTab] = useState<Tab>(initialTab ?? 'stream');
+
+  useEffect(() => {
+    if (initialTab) onInitialTabHandled();
+  }, [initialTab, onInitialTabHandled]);
   const [job, setJob] = useState<Job>('idle');
   const jobRef = useRef<Job>('idle');
 
