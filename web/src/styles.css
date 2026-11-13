@@ -595,7 +595,8 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
 .shell { --todo-w: 400px; }
 /* The third track always exists at desktop widths (0px when unpinned) so grid-template-columns can transition. */
 @media (min-width: 1024px) {
-  .shell { grid-template-columns: var(--nav-w) minmax(0, 1fr) var(--pin-w, 0px); }
+  /* One row bounded to the viewport; an auto row grows with the pinned drawer's list and nothing scrolls. */
+  .shell { grid-template-columns: var(--nav-w) minmax(0, 1fr) var(--pin-w, 0px); grid-template-rows: minmax(0, 1fr); }
   .shell.todos-pinned { --pin-w: var(--todo-w); }
   .chat-fab { transition: transform .15s, box-shadow .15s, right .22s ease; }
   .chat { transition: right .22s ease, width .22s ease; }
