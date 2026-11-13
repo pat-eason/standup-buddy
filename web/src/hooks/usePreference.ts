@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 export const PREF_TODOS_PINNED = 'standup-buddy.todos-pinned';
+export const PREF_PAGE_TRANSITIONS = 'standup-buddy.page-transitions';
 export const PREF_FRIENDLY_DATES = 'standup-buddy.friendly-dates';
 
 const listeners = new Set<() => void>();

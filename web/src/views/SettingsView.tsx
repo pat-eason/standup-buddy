@@ -3,7 +3,7 @@ import { MODEL_OPTIONS, type AppInfo, type AppSettings, type SettingsPatch, type
 import { Icon } from '../components/Icon';
 import { Toggle, errMsg, useToast } from '../components/ui';
 import { api } from '../api';
-import { PREF_FRIENDLY_DATES, usePreference } from '../hooks/usePreference';
+import { PREF_FRIENDLY_DATES, PREF_PAGE_TRANSITIONS, usePreference } from '../hooks/usePreference';
 import { PageTitle } from '../components/PageTitle';
 
 const THINKING: ThinkingLevel[] = ['off', 'minimal', 'low', 'medium', 'high'];
@@ -191,6 +191,7 @@ function McpCard() {
 
 export function SettingsView() {
   const toast = useToast();
+  const [pageTransitions, setPageTransitions] = usePreference(PREF_PAGE_TRANSITIONS, true);
   const [friendlyDates, setFriendlyDates] = usePreference(PREF_FRIENDLY_DATES, true);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -250,6 +251,13 @@ export function SettingsView() {
             <select className="select" aria-label="Thinking level" value={settings.thinkingLevel} onChange={(e) => void patch({ thinkingLevel: e.target.value as ThinkingLevel })}>
               {THINKING.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
+          </Field>
+        </div>
+
+        <div className="card card-pad">
+          <h3 className="card-title"><Icon name="settings" size={20} /> Interface</h3>
+          <Field name="Page transitions" hint="Animate the menu highlight and sweep a curtain across the page when you switch pages. Always off if your system prefers reduced motion.">
+            <Toggle on={pageTransitions} onChange={setPageTransitions} />
           </Field>
         </div>
 

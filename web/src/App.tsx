@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DayRecord, DaySummary, Project } from './types';
 import { ChatPopup } from './components/ChatPopup';
 import { Icon } from './components/Icon';
 import { TopbarTitleProvider, type TopbarTitle } from './components/PageTitle';
 import { TodoDrawer } from './components/TodoDrawer';
 import { ShortcutHelp } from './components/ShortcutHelp';
-import { PREF_TODOS_PINNED, useMediaQuery, usePreference } from './hooks/usePreference';
+import { PREF_PAGE_TRANSITIONS, PREF_TODOS_PINNED, useMediaQuery, usePreference } from './hooks/usePreference';
 import { onOpenTodosRequest, useTodos } from './hooks/useTodos';
+import { useNavMarker } from './hooks/useNavMarker';
+import { usePageTransition } from './hooks/usePageTransition';
 import { useShortcuts, type ShortcutActions } from './hooks/useShortcuts';
 import { MOD_KEY, emitDayAction, type DayTab } from './shortcuts';
 import { errMsg, fmtLong, fmtShort, localDate, shiftDate, useToast } from './components/ui';
@@ -108,6 +110,10 @@ export function App() {
       }),
     [pinActive],
   );
+  const [pageTransitions] = usePreference(PREF_PAGE_TRANSITIONS, true);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const marker = useNavMarker(sidebarRef, view);
+  const { shown: shownView, run: curtainRun } = usePageTransition(view, pageTransitions);
   const openTodoCount = todos.filter((t) => !t.done).length;
 
   useEffect(() => {
@@ -222,8 +228,14 @@ export function App() {
   );
 
   return (
-    <div className={`shell ${collapsed ? 'collapsed' : ''} ${dockedTodos ? 'todos-pinned' : ''}`}>
-      <aside className="sidebar">
+    <div className={`shell ${collapsed ? 'collapsed' : ''} ${dockedTodos ? 'todos-pinned' : ''} ${todosOpen && !pinActive ? 'todos-floating' : ''}`}>
+      <aside className="sidebar" ref={sidebarRef}>
+        <span
+          className="nav-marker"
+          aria-hidden
+          data-snap={marker.snap || !pageTransitions}
+          style={{ opacity: marker.ready ? 1 : 0, width: marker.w, height: marker.h, transform: `translate(${marker.x}px, ${marker.y}px)` }}
+        />
         <div className="side-head">
           <div className="brand">
             <span className="brand-full">Standup Buddy<i>.</i></span>
@@ -257,7 +269,7 @@ export function App() {
       <main className="main">
         <div className="topbar">
           <span />
-          {view === 'day' && date && today ? (
+          {shownView === 'day' && date && today ? (
             <div className="datenav">
               <button className="icon-btn" aria-label="Previous day" onClick={() => setDate(shiftDate(date, -1))}><Icon name="left" size={16} /></button>
               <span className="label">{date === today ? 'Today' : fmtLong(date)}</span>
@@ -273,15 +285,23 @@ export function App() {
         </div>
         <TopbarTitleProvider report={setPageTitle}>
         <div className="scroll">
-          {view === 'day' && day && (
+          {shownView === 'day' && day && (
             <DayView key={day.date} day={day} initialTab={pendingTab?.date === day.date ? pendingTab.tab : undefined} onInitialTabHandled={clearPendingTab} projects={projects} focusRequested={focusRequested} onFocusHandled={handleFocusHandled} reload={reload} setDay={updateDay} onCreateProject={createProject} />
           )}
-          {view === 'history' && <HistoryView days={days} onOpen={openDay} />}
-          {view === 'insights' && today && <InsightsView today={today} onOpenDay={openDay} />}
-          {view === 'projects' && <ProjectsView projects={projects} onChanged={reload} />}
-          {view === 'settings' && <SettingsView />}
+          {shownView === 'history' && <HistoryView days={days} onOpen={openDay} />}
+          {shownView === 'insights' && today && <InsightsView today={today} onOpenDay={openDay} />}
+          {shownView === 'projects' && <ProjectsView projects={projects} onChanged={reload} />}
+          {shownView === 'settings' && <SettingsView />}
         </div>
         </TopbarTitleProvider>
+        {curtainRun > 0 && (
+          <div key={curtainRun} className="curtain" aria-hidden>
+            <div className="curtain-panel" />
+            <div className="curtain-title">
+              <span className="curtain-title-text">{[...NAV, SETTINGS_NAV].find((n) => n.id === view)?.label}<i>.</i></span>
+            </div>
+          </div>
+        )}
       </main>
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
       <TodoDrawer
