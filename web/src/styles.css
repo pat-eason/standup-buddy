@@ -668,3 +668,7 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
 .todo-source-link { font: inherit; color: var(--secondary); font-weight: 600; text-decoration: underline; text-decoration-color: var(--secondary-40); text-underline-offset: 2px; }
 .todo-source-link:hover { text-decoration-color: var(--secondary); }
 .todo.leaving { pointer-events: none; }
+
+/* Let code blocks scroll inside settings cards instead of stretching the grid. */
+.settings-grid > *, .field > div { min-width: 0; }
+.field .md pre { white-space: pre; overflow-x: auto; padding-right: 36px; }

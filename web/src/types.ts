@@ -68,7 +68,7 @@ export interface SuggestedTodo {
   dueDate?: string;
 }
 
-export type TodoSource = 'manual' | 'action_item' | 'suggested';
+export type TodoSource = 'manual' | 'action_item' | 'suggested' | 'mcp';
 
 export interface Todo {
   id: number;
