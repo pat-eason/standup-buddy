@@ -381,7 +381,7 @@ func (s *Store) WeekReport(ctx context.Context, date string) (WeekReport, error)
 // recapWeek asks the agent to write the weekly recap from the week's finalized
 // summaries (or raw boards for days that were never finalized) plus the metrics.
 func (s *Server) recapWeek(ctx context.Context, date string) error {
-	if err := s.requireKey(ctx); err != nil {
+	if err := s.requireLLM(ctx); err != nil {
 		return err
 	}
 	start, end, err := weekBounds(date)
@@ -448,7 +448,7 @@ func (s *Server) recapWeek(ctx context.Context, date string) error {
 	}
 	b.WriteString("\nWrite the weekly recap and call submit_recap.")
 
-	raw, err := s.agent.Run(ctx, "recap", fmt.Sprintf("recap-%s-%d", from, time.Now().UnixMilli()), clip(b.String(), 60000))
+	raw, err := s.runAgent(ctx, "recap", fmt.Sprintf("recap-%s-%d", from, time.Now().UnixMilli()), clip(b.String(), 60000))
 	if err != nil {
 		return err
 	}

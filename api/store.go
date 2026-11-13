@@ -795,3 +795,42 @@ func (s *Store) ClearThreads(ctx context.Context) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM chat_threads`)
 	return err
 }
+
+// ------------------------------------------------------------ chat messages
+
+func (s *Store) ListChatMessages(ctx context.Context, threadID string) ([]ChatMessage, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, role, parts, created_at FROM chat_messages WHERE thread_id = $1::uuid ORDER BY id`, threadID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ChatMessage{}
+	for rows.Next() {
+		var m ChatMessage
+		var raw []byte
+		if err := rows.Scan(&m.ID, &m.Role, &raw, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &m.Parts); err != nil {
+			m.Parts = []ChatPart{}
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) AddChatMessage(ctx context.Context, threadID, role string, parts []ChatPart) error {
+	raw, _ := json.Marshal(parts)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `INSERT INTO chat_messages (thread_id, role, parts) VALUES ($1::uuid, $2, $3::jsonb)`, threadID, role, string(raw)); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE chat_threads SET updated_at = now() WHERE id = $1::uuid`, threadID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}

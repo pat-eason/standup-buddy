@@ -25,6 +25,7 @@ services:
     environment:
       DATABASE_URL: postgres://standup:${POSTGRES_PASSWORD:-standup}@db:5432/standup?sslmode=disable
       AGENT_URL: http://agent:3000
+      CLAUDE_CODE_AGENT_URL: http://claude-runner:3100
       APP_SECRET: ${APP_SECRET:-dev-only-secret-change-me}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -48,6 +49,19 @@ services:
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
       PORT: "3000"
 
+  # Runs the agents on a Claude Code subscription. Link the login from Settings → Model provider;
+  # it is stored in the claude_home volume. Not published: only the api service talks to it.
+  claude-runner:
+    build:
+      context: ./agent
+      dockerfile: Dockerfile.runner
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:8080
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
+    volumes:
+      - claude_home:/home/node
+
   web:
     build: ./web
     restart: unless-stopped
@@ -62,3 +76,4 @@ services:
 
 volumes:
   pgdata:
+  claude_home:

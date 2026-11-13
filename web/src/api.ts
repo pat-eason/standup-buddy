@@ -1,7 +1,10 @@
 import type {
   AppInfo,
   AppSettings,
+  ChatEvent,
+  ChatMessage,
   ChatThread,
+  ClaudeStatus,
   DayRecord,
   DaySummary,
   PointKind,
@@ -83,6 +86,7 @@ export const api = {
   createThread: () => request<ChatThread>('POST', '/threads'),
   renameThread: (id: string, title: string) => request<void>('PATCH', `/threads/${id}`, { title }),
   deleteThread: (id: string) => request<void>('DELETE', `/threads/${id}`),
+  listChatMessages: (id: string) => request<ChatMessage[]>('GET', `/threads/${id}/messages`),
   clearThreads: () => request<void>('DELETE', '/threads'),
 
   listTodos: () => request<Todo[]>('GET', '/todos'),
@@ -93,6 +97,42 @@ export const api = {
   getSettings: () => request<AppSettings>('GET', '/settings'),
   saveSettings: (patch: SettingsPatch) => request<AppSettings>('PATCH', '/settings', patch),
   setApiKey: (key: string | null) => request<AppSettings>('PUT', '/settings/api-key', { key: key ?? '' }),
+  claudeStatus: () => request<ClaudeStatus>('GET', '/claude/status'),
+  claudeLogin: () => request<{ url: string }>('POST', '/claude/login').then((r) => r.url),
+  claudeCode: (code: string) => request<ClaudeStatus>('POST', '/claude/login/code', { code }),
+  claudeLogout: () => request<ClaudeStatus>('POST', '/claude/logout'),
   testConnection: () => request<{ reply: string }>('POST', '/settings/test').then((r) => r.reply),
   getAppInfo: () => request<AppInfo>('GET', '/info'),
 };
+
+/** Sends a message on the Claude Code subscription and reads the reply as it streams in. */
+export async function streamChat(threadId: string, content: string, onEvent: (e: ChatEvent) => void, signal: AbortSignal): Promise<void> {
+  const res = await fetch(`/api/threads/${enc(threadId)}/chat`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ content }),
+    signal,
+  });
+  if (!res.ok || !res.body) {
+    let message = `Request failed (${res.status})`;
+    try {
+      message = ((await res.json()) as { error?: string }).error ?? message;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(message);
+  }
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buffer += value;
+    let nl: number;
+    while ((nl = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (line) onEvent(JSON.parse(line) as ChatEvent);
+    }
+    if (done) break;
+  }
+}

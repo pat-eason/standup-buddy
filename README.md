@@ -37,7 +37,21 @@ Open <http://standup.buddy.localhost:8080> (or <http://localhost:8080>). Chrome 
 
 The app has **no login** and is bound to `127.0.0.1` on purpose. Do not expose it to a network as is.
 
+To use your **Claude Code subscription** instead of an API key, see [Claude Code subscription](#claude-code-subscription).
+
 Stop it with `docker compose down`. Your data lives in the `pgdata` volume; add `-v` to wipe it.
+
+## Claude Code subscription
+
+Every model call (collate, finalize, the weekly recap and the notes chat) can run on your Claude subscription instead of an Anthropic API key. Choose one under **Settings → Model provider**; the choice applies to everything.
+
+To link a subscription, pick **Claude Code subscription** and click **Set up Claude Code subscription**. The app shows a sign-in link; approve access on Claude's page, paste the code it shows back into Settings, and click **Link**. Press **Test connection** to confirm. **Unlink** signs out.
+
+- **How it works.** The `claude-runner` service (`agent/src/claude-code/`) runs the agents with the [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview). Linking runs `claude auth login` inside that container and feeds it the pasted code; the Go API only relays (`/api/claude/*`), and the runner is not published to the host.
+- **Where the login is stored.** In the `claude_home` Docker volume (`/home/node/.claude`, a credentials file readable only by the container's user). `docker compose down -v` removes it, and **Unlink** clears it. Nothing about the login is kept in Postgres.
+- **Chat history** for this provider is stored in Postgres (`chat_messages`). Chats made under the API-key provider stay in Flue's tables and are not shown here, and the other way round.
+- **Usage.** Calls count against your Claude plan's usage limits, and every collate or chat message uses some of it. Whether a personal local app may use subscription sign-in is governed by Anthropic's terms; check the current ones.
+- **Details that matter.** The runner scrubs `ANTHROPIC_*` and `CLAUDE_CODE_*` from its environment so a key cannot change what you are billed, passes `strictMcpConfig` so no MCP servers are loaded into each call (otherwise ~100k extra tokens per run), and never uses bare mode, which skips the stored login.
 
 ## Install as an app (PWA)
 
@@ -125,13 +139,14 @@ Single keys work anywhere except while typing in a field, so they never collide 
 | --- | --- | --- |
 | `web` | React 19 + Vite, `@flue/react`, nginx | UI; nginx proxies `/api` and `/agents` |
 | `api` | Go (`net/http`, pgx, MCP Go SDK) | All data, prompts, settings, search and the `/mcp` endpoint; migrations run on every start |
-| `agent` | Node, [Flue](https://flueframework.com) 2.3 | LLM agents: collator, finalizer and the multi-turn notes assistant |
+| `agent` | Node, [Flue](https://flueframework.com) 2.3 | LLM agents: collator, finalizer and the multi-turn notes assistant (API-key provider) |
+| `claude-runner` | Node, Claude Agent SDK | The same agents on your Claude subscription (`agent/src/claude-code/`), plus the in-app login |
 | `db` | Postgres 17 | App data and Flue's conversation tables |
 
-- **Collate and finalize.** The Go API builds the prompt from the day's data and calls the agent service. A Flue agent returns its result through a terminating tool call (`submit_collation`, `submit_summary`), which the API validates and saves.
-- **Ask your notes.** The browser talks to the Flue `notes-assistant` agent directly through `useFlueAgent`. Its tools (`search_notes`, `get_day`, `list_days`, `list_projects`) call back into the Go API. Conversations are durable in Postgres.
+- **Collate and finalize.** The Go API builds the prompt from the day's data and calls the agent service. A Flue agent returns its result through a terminating tool call (`submit_collation`, `submit_summary`), which the API validates and saves. With the subscription provider the API calls the Claude Code runner instead, which returns the same shapes as structured output. Prompts and schemas are shared (`agent/src/prompts/`).
+- **Ask your notes.** The browser talks to the Flue `notes-assistant` agent directly through `useFlueAgent`. Its tools (`search_notes`, `get_day`, `list_days`, `list_projects`) call back into the Go API. Conversations are durable in Postgres. With the subscription provider the browser instead posts to the Go API (`POST /api/threads/{id}/chat`), which stores the messages and relays the runner's NDJSON stream.
 - **MCP.** The Go API mounts a stateless MCP endpoint at `/mcp` (nginx proxies it). Its tools call the same store and jobs as the UI, so there is no second copy of the logic. Setup instructions are under **Settings → MCP server**.
-- **Settings.** The friendly-due-dates toggle (saved in the browser), model per task (default `claude-haiku-5-5`), thinking level, tool toggles, extra prompt instructions and the API key. The agent service re-reads them from the API on each request.
+- **Settings.** The friendly-due-dates toggle (saved in the browser), model per task (default `claude-haiku-5-5`), thinking level, tool toggles, extra prompt instructions, the model provider and the API key. The agent service re-reads them from the API on each request.
 - **Layout.** Every view shares one content width. The sidebar collapses to an icon rail, and below tablet-portrait width the nav moves to the top.
 
 Set `ANTHROPIC_BASE_URL` to route model calls through a gateway or proxy.

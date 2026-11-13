@@ -1,8 +1,8 @@
 import { useFlueAgent, type FlueConversationMessage, type FlueConversationPart } from '@flue/react';
 import { createFlueClient } from '@flue/sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api } from '../api';
-import type { ChatThread } from '../types';
+import { api, streamChat } from '../api';
+import type { ChatMessage, ChatPart, ChatThread, LlmProvider } from '../types';
 import { Icon } from './Icon';
 import { Markdown } from './Markdown';
 import { errMsg, useToast } from './ui';
@@ -20,7 +20,18 @@ const TOOL_LABEL: Record<string, string> = {
   list_projects: 'Checking projects',
 };
 
-type ToolPart = Extract<FlueConversationPart, { type: 'dynamic-tool' }>;
+/** The shape both chat transports (Flue and the Claude Code stream) are normalised to. */
+interface ToolPart {
+  toolCallId: string;
+  toolName: string;
+  input?: unknown;
+  state: 'running' | 'done' | 'error';
+}
+interface BubbleData {
+  role: 'user' | 'assistant';
+  text: string;
+  tools: ToolPart[];
+}
 
 function toolText(part: ToolPart): string {
   const input = part.input as { query?: string; date?: string } | undefined;
@@ -30,22 +41,44 @@ function toolText(part: ToolPart): string {
 }
 
 function ToolChip({ part }: { part: ToolPart }) {
-  const running = part.state === 'input-available';
+  const running = part.state === 'running';
   return (
     <span className={`tool-line ${running ? 'running' : ''}`}>
-      <Icon name={running ? 'loader' : part.state === 'output-error' ? 'x' : 'search'} size={12} />
+      <Icon name={running ? 'loader' : part.state === 'error' ? 'x' : 'search'} size={12} />
       {toolText(part)}
     </span>
   );
 }
 
-function MessageBubble({ message }: { message: FlueConversationMessage }) {
-  const tools = message.parts.filter((p): p is ToolPart => p.type === 'dynamic-tool');
+function fromFlue(message: FlueConversationMessage): BubbleData {
+  const tools = message.parts
+    .filter((p): p is Extract<FlueConversationPart, { type: 'dynamic-tool' }> => p.type === 'dynamic-tool')
+    .map((p): ToolPart => ({
+      toolCallId: p.toolCallId,
+      toolName: p.toolName,
+      input: p.input,
+      state: p.state === 'input-available' ? 'running' : p.state === 'output-error' ? 'error' : 'done',
+    }));
   const text = message.parts
     .filter((p): p is Extract<FlueConversationPart, { type: 'text' }> => p.type === 'text')
     .map((p) => p.text)
     .join('\n\n');
-  if (message.role === 'user') return <div className="bubble user">{text}</div>;
+  return { role: message.role === 'user' ? 'user' : 'assistant', text, tools };
+}
+
+function fromParts(role: 'user' | 'assistant', parts: ChatPart[]): BubbleData {
+  const tools: ToolPart[] = [];
+  const texts: string[] = [];
+  for (const p of parts) {
+    if (p.type === 'text') texts.push(p.text);
+    else tools.push({ toolCallId: p.id, toolName: p.name ?? 'tool', input: p.input, state: p.state ?? 'done' });
+  }
+  return { role, text: texts.join('\n\n'), tools };
+}
+
+function Bubble({ data }: { data: BubbleData }) {
+  const { tools, text } = data;
+  if (data.role === 'user') return <div className="bubble user">{text}</div>;
   if (tools.length === 0 && !text) return null;
   return (
     <div className="bubble assistant">
@@ -104,7 +137,7 @@ function Conversation({ threadId, onFirstMessage }: { threadId: string; onFirstM
           </div>
         )}
         {visible.map((m) => (
-          <MessageBubble key={m.id} message={m} />
+          <Bubble key={m.id} data={fromFlue(m)} />
         ))}
         {busy && lastIsUser && (
           <div className="bubble assistant"><span className="typing"><i /><i /><i /></span></div>
@@ -138,12 +171,131 @@ function Conversation({ threadId, onFirstMessage }: { threadId: string; onFirstM
   );
 }
 
+/** Chat on the Claude Code subscription: history lives in the API, replies stream as NDJSON. */
+function SubscriptionConversation({ threadId, onFirstMessage }: { threadId: string; onFirstMessage: (id: string, text: string) => void }) {
+  const toast = useToast();
+  const [messages, setMessages] = useState<ChatMessage[] | null>(null);
+  const [reply, setReply] = useState<BubbleData | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [text, setText] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const busy = pending !== null;
+
+  useEffect(() => {
+    let ignore = false;
+    api.listChatMessages(threadId).then((m) => !ignore && setMessages(m)).catch((e) => toast(errMsg(e), true));
+    return () => {
+      ignore = true;
+      abortRef.current?.abort();
+    };
+  }, [threadId, toast]);
+
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
+  }, [messages, reply, pending]);
+
+  const send = async (override?: string) => {
+    const content = (override ?? text).trim();
+    if (!content || busy || messages === null) return;
+    setText('');
+    setError('');
+    setPending(content);
+    setReply({ role: 'assistant', text: '', tools: [] });
+    if (messages.length === 0) onFirstMessage(threadId, content);
+    const ac = new AbortController();
+    abortRef.current = ac;
+    try {
+      await streamChat(
+        threadId,
+        content,
+        (e) => {
+          if (e.type === 'error') setError(e.message);
+          else if (e.type === 'text') setReply((r) => (r ? { ...r, text: r.text + e.delta } : r));
+          else if (e.type === 'tool') {
+            setReply((r) => {
+              if (!r) return r;
+              const known = r.tools.some((t) => t.toolCallId === e.id);
+              const tools = known
+                ? r.tools.map((t) => (t.toolCallId === e.id ? { ...t, state: e.state } : t))
+                : [...r.tools, { toolCallId: e.id, toolName: e.name ?? 'tool', input: e.input, state: e.state }];
+              return { ...r, tools };
+            });
+          }
+        },
+        ac.signal,
+      );
+    } catch (e) {
+      if (!ac.signal.aborted) setError(errMsg(e));
+    } finally {
+      abortRef.current = null;
+      // The API stored both sides; reload so the stored copy replaces the streamed one.
+      try {
+        setMessages(await api.listChatMessages(threadId));
+      } catch {
+        /* keep what is on screen */
+      }
+      setPending(null);
+      setReply(null);
+    }
+  };
+
+  const shown = messages ?? [];
+  return (
+    <>
+      <div className="chat-body" ref={bodyRef}>
+        {shown.length === 0 && !busy && messages !== null && (
+          <div className="suggest">
+            <div className="muted small" style={{ marginBottom: 2 }}>Search and ask questions across every standup you've recorded.</div>
+            {SUGGESTIONS.map((s) => (
+              <button key={s} onClick={() => void send(s)}>{s}</button>
+            ))}
+          </div>
+        )}
+        {shown.map((m) => (
+          <Bubble key={m.id} data={fromParts(m.role, m.parts)} />
+        ))}
+        {pending !== null && <div className="bubble user">{pending}</div>}
+        {reply && (reply.text || reply.tools.length > 0 ? (
+          <Bubble data={reply} />
+        ) : !error ? (
+          <div className="bubble assistant"><span className="typing"><i /><i /><i /></span></div>
+        ) : null)}
+        {error && <div className="bubble assistant" style={{ color: 'var(--accent-strong)' }}>Something went wrong: {error}</div>}
+      </div>
+      <div className="chat-foot">
+        <textarea
+          className="textarea"
+          rows={1}
+          value={text}
+          aria-label="Message"
+          placeholder="Ask about your notes…"
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+        />
+        {busy ? (
+          <button className="send" aria-label="Stop" onClick={() => abortRef.current?.abort()}><Icon name="x" size={18} /></button>
+        ) : (
+          <button className="send" aria-label="Send" disabled={!text.trim()} onClick={() => void send()}><Icon name="send" size={18} /></button>
+        )}
+      </div>
+    </>
+  );
+}
+
 export function ChatPopup({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [threadId, setThreadId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [hasKey, setHasKey] = useState(true);
+  const [provider, setProvider] = useState<LlmProvider>('api_key');
 
   const loadThreads = useCallback(async () => {
     const list = await api.listThreads();
@@ -156,7 +308,8 @@ export function ChatPopup({ onClose }: { onClose: () => void }) {
     Promise.all([api.listThreads(), api.getSettings()])
       .then(([list, settings]) => {
         if (ignore) return;
-        setHasKey(settings.apiKeySource !== 'none');
+        setProvider(settings.llmProvider);
+        setHasKey(settings.llmProvider === 'claude_code' || settings.apiKeySource !== 'none');
         setThreads(list);
         setThreadId(list[0]?.id ?? null);
         setReady(true);
@@ -224,11 +377,15 @@ export function ChatPopup({ onClose }: { onClose: () => void }) {
       {!hasKey ? (
         <div className="chat-body">
           <div className="bubble assistant">
-            <Markdown text={'**No API key yet.** Add your Anthropic API key under **Settings**, then reopen this chat.'} />
+            <Markdown text={'**No API key yet.** Add your Anthropic API key under **Settings** (or switch to the Claude Code subscription), then reopen this chat.'} />
           </div>
         </div>
       ) : threadId ? (
-        <Conversation key={threadId} threadId={threadId} onFirstMessage={nameThread} />
+        provider === 'claude_code' ? (
+          <SubscriptionConversation key={threadId} threadId={threadId} onFirstMessage={nameThread} />
+        ) : (
+          <Conversation key={threadId} threadId={threadId} onFirstMessage={nameThread} />
+        )
       ) : (
         <div className="chat-body" />
       )}

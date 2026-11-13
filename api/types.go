@@ -105,6 +105,7 @@ type ChatThread struct {
 
 // Settings are what the UI edits. The API key is stored separately and never returned.
 type Settings struct {
+	LLMProvider          string `json:"llmProvider"` // api_key | claude_code
 	CollateModel         string `json:"collateModel"`
 	FinalizeModel        string `json:"finalizeModel"`
 	ChatModel            string `json:"chatModel"`
@@ -128,6 +129,23 @@ type SettingsView struct {
 type AgentConfig struct {
 	Settings
 	APIKey string `json:"apiKey"`
+}
+
+// ChatPart is one piece of a chat message: text, or a tool call the assistant made.
+type ChatPart struct {
+	Type  string          `json:"type"` // text | tool
+	Text  string          `json:"text,omitempty"`
+	ID    string          `json:"id,omitempty"`
+	Name  string          `json:"name,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
+	State string          `json:"state,omitempty"` // running | done | error
+}
+
+type ChatMessage struct {
+	ID        int64      `json:"id"`
+	Role      string     `json:"role"`
+	Parts     []ChatPart `json:"parts"`
+	CreatedAt time.Time  `json:"createdAt"`
 }
 
 // jsonRaw is a tiny alias so handlers can pass agent output through untouched.

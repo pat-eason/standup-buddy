@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
-import { MODEL_OPTIONS, type AppInfo, type AppSettings, type SettingsPatch, type ThinkingLevel } from '../types';
+import { MODEL_OPTIONS, type AppInfo, type AppSettings, type ClaudeStatus, type LlmProvider, type SettingsPatch, type ThinkingLevel } from '../types';
 import { Icon } from '../components/Icon';
 import { Toggle, errMsg, useToast } from '../components/ui';
 import { api } from '../api';
@@ -30,7 +30,98 @@ function ModelSelect({ value, onChange, label }: { value: string; onChange: (v: 
   );
 }
 
-function KeyCard({ settings, onSettings }: { settings: AppSettings; onSettings: (s: AppSettings) => void }) {
+/** Links the Claude Code login: the API drives `claude auth login` in the runner container. */
+function SubscriptionSetup() {
+  const toast = useToast();
+  const [status, setStatus] = useState<ClaudeStatus | null>(null);
+  const [step, setStep] = useState<'idle' | 'starting' | 'code' | 'linking'>('idle');
+  const [url, setUrl] = useState('');
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+
+  const refresh = async () => {
+    try {
+      setStatus(await api.claudeStatus());
+    } catch (e) {
+      setStatus({ runner: false, loggedIn: false, message: errMsg(e) });
+    }
+  };
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const begin = async () => {
+    setError('');
+    setCode('');
+    setStep('starting');
+    try {
+      setUrl(await api.claudeLogin());
+      setStep('code');
+    } catch (e) {
+      setError(errMsg(e));
+      setStep('idle');
+    }
+  };
+  const finish = async () => {
+    setError('');
+    setStep('linking');
+    try {
+      setStatus(await api.claudeCode(code));
+      setStep('idle');
+      setCode('');
+      toast('Claude Code subscription linked');
+    } catch (e) {
+      // Stay on the code step: a wrong code can simply be pasted again.
+      setError(errMsg(e));
+      setStep('code');
+    }
+  };
+  const signOut = async () => {
+    try {
+      setStatus(await api.claudeLogout());
+    } catch (e) {
+      toast(errMsg(e), true);
+    }
+  };
+
+  const who = status?.loggedIn
+    ? `Linked${status.email ? ` as ${status.email}` : ''}${status.subscriptionType ? ` (${status.subscriptionType})` : ''}.`
+    : status && !status.runner
+      ? status.message ?? 'The Claude Code runner is not running.'
+      : 'Not linked yet.';
+
+  return (
+    <Field name="Subscription" hint={who}>
+      {step === 'code' || step === 'linking' ? (
+        <div className="stack" style={{ display: 'grid', gap: 8 }}>
+          <div className="muted small">1. Sign in with Claude and approve access. The page then shows a code.</div>
+          <div>
+            <a className="btn btn-dark" href={url} target="_blank" rel="noopener noreferrer">Open the Claude sign-in page</a>
+          </div>
+          <div className="muted small">2. Paste that code here.</div>
+          <div className="row">
+            <input className="input" autoComplete="off" spellCheck={false} value={code} placeholder="Paste the code" aria-label="Sign-in code" onChange={(e) => setCode(e.target.value)} />
+            <button className="btn btn-dark" disabled={!code.trim() || step === 'linking'} onClick={() => void finish()}>
+              {step === 'linking' ? 'Linking…' : 'Link'}
+            </button>
+            <button className="btn btn-ghost" disabled={step === 'linking'} onClick={() => setStep('idle')}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div className="row">
+          <button className="btn btn-dark" disabled={step === 'starting' || (status !== null && !status.runner)} onClick={() => void begin()}>
+            {step === 'starting' ? 'Starting…' : status?.loggedIn ? 'Link a different account' : 'Set up Claude Code subscription'}
+          </button>
+          {status?.loggedIn && <button className="btn btn-ghost" onClick={() => void signOut()}>Unlink</button>}
+          <button className="btn btn-ghost" onClick={() => void refresh()}>Refresh</button>
+        </div>
+      )}
+      {error && <div className="status-bad small" style={{ marginTop: 6 }}>{error}</div>}
+    </Field>
+  );
+}
+
+function ProviderCard({ settings, onSettings }: { settings: AppSettings; onSettings: (s: AppSettings) => void }) {
   const toast = useToast();
   const [key, setKey] = useState('');
   const [test, setTest] = useState<{ state: 'idle' | 'running' | 'ok' | 'fail'; text: string }>({ state: 'idle', text: '' });
@@ -62,6 +153,16 @@ function KeyCard({ settings, onSettings }: { settings: AppSettings; onSettings: 
     }
   };
 
+  const setProvider = async (llmProvider: LlmProvider) => {
+    try {
+      onSettings(await api.saveSettings({ llmProvider }));
+      setTest({ state: 'idle', text: '' });
+    } catch (e) {
+      toast(errMsg(e), true);
+    }
+  };
+  const subscription = settings.llmProvider === 'claude_code';
+
   const sourceText =
     settings.apiKeySource === 'stored'
       ? `Saved encrypted in Postgres (AES-256-GCM): ${settings.apiKeyHint}`
@@ -71,15 +172,25 @@ function KeyCard({ settings, onSettings }: { settings: AppSettings; onSettings: 
 
   return (
     <div className="card card-pad">
-      <h3 className="card-title"><Icon name="lock" size={20} /> Anthropic API key</h3>
-      <Field name="Key" hint={sourceText}>
-        <div className="row">
-          <input className="input" type="password" autoComplete="off" value={key} placeholder="sk-ant-…" aria-label="Anthropic API key" onChange={(e) => setKey(e.target.value)} />
-          <button className="btn btn-dark" disabled={!key.trim()} onClick={() => void save()}>Save</button>
-          {settings.apiKeySource === 'stored' && <button className="btn btn-ghost" onClick={() => void remove()}>Remove</button>}
-        </div>
+      <h3 className="card-title"><Icon name="lock" size={20} /> Model provider</h3>
+      <Field name="Run models with" hint="Collate, finalize, the weekly recap and chat all use this one provider.">
+        <select className="select" aria-label="Model provider" value={settings.llmProvider} onChange={(e) => void setProvider(e.target.value as LlmProvider)}>
+          <option value="api_key">Anthropic API key</option>
+          <option value="claude_code">Claude Code subscription (this machine)</option>
+        </select>
       </Field>
-      <Field name="Connection" hint="Sends a tiny request to the Anthropic API with this key.">
+      {subscription ? (
+        <SubscriptionSetup />
+      ) : (
+        <Field name="Key" hint={sourceText}>
+          <div className="row">
+            <input className="input" type="password" autoComplete="off" value={key} placeholder="sk-ant-…" aria-label="Anthropic API key" onChange={(e) => setKey(e.target.value)} />
+            <button className="btn btn-dark" disabled={!key.trim()} onClick={() => void save()}>Save</button>
+            {settings.apiKeySource === 'stored' && <button className="btn btn-ghost" onClick={() => void remove()}>Remove</button>}
+          </div>
+        </Field>
+      )}
+      <Field name="Connection" hint={subscription ? 'Sends a tiny request through the Claude Code runner on your subscription.' : 'Sends a tiny request to the Anthropic API with this key.'}>
         <div className="row">
           <button className="btn btn-ghost" disabled={test.state === 'running'} onClick={() => void runTest()}>
             <Icon name={test.state === 'running' ? 'loader' : 'refresh'} size={15} className={test.state === 'running' ? 'spin' : ''} /> Test connection
@@ -231,10 +342,10 @@ export function SettingsView() {
     <div className="page">
       <div>
         <PageTitle title="Settings" />
-        <div className="muted">Keys, models and the notes agent's tools.</div>
+        <div className="muted">Provider, models and the notes agent's tools.</div>
       </div>
       <div className="settings-grid">
-        <KeyCard settings={settings} onSettings={setSettings} />
+        <ProviderCard settings={settings} onSettings={setSettings} />
 
         <div className="card card-pad">
           <h3 className="card-title"><Icon name="sparkle" size={20} /> Models</h3>

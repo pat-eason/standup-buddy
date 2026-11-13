@@ -1,8 +1,8 @@
-import { getConfig } from './config.ts';
+import { getConfig, type AgentConfig } from './config.ts';
 
-export function userContext(): string {
-  const { userContext } = getConfig();
-  return userContext.trim() ? `\n\nAbout the user:\n${userContext.trim()}` : '';
+export function userContext(cfg: AgentConfig = getConfig()): string {
+  const text = cfg.userContext;
+  return text.trim() ? `\n\nAbout the user:\n${text.trim()}` : '';
 }
 
 export function extra(label: string, text: string): string {
