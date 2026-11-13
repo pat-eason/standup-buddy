@@ -625,7 +625,7 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
 .todo-main { flex: 1; min-width: 0; }
 .todo-title { font-weight: 500; overflow-wrap: anywhere; }
 .todo.done .todo-title { text-decoration: line-through; color: var(--secondary-60); }
-.todo-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.todo-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; min-height: 22px; }
 .todo-due { font-size: 12px; color: var(--secondary-60); }
 .todo-due.overdue { color: var(--accent-strong); font-weight: 600; }
 .todo-actions { display: flex; opacity: 0; transition: opacity .12s; }
@@ -693,13 +693,13 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
   50% { filter: drop-shadow(0 0 5px rgba(238, 70, 76, .8)); }
 }
 @media (prefers-reduced-motion: reduce) { .flame svg { animation: none; } }
-.todo-flame { margin-top: 1px; align-self: flex-start; }
+.todo-flame { margin-left: auto; }
 
 /* The hotter the todo, the more its row glows from the flame side. */
 .todo[data-urgency='2'] { background: linear-gradient(90deg, rgba(244, 197, 66, .12), rgba(244, 197, 66, 0) 80%); }
 .todo[data-urgency='3'] { background: linear-gradient(90deg, rgba(246, 153, 58, .18), rgba(246, 153, 58, 0) 85%); }
-.todo[data-urgency='4'] { background: linear-gradient(90deg, rgba(242, 101, 58, .24), rgba(246, 153, 58, .06) 90%); box-shadow: inset 3px 0 0 var(--flame-4); }
-.todo[data-urgency='5'] { background: linear-gradient(90deg, rgba(238, 70, 76, .3), rgba(246, 153, 58, .1) 95%); box-shadow: inset 4px 0 0 var(--flame-5); }
+.todo[data-urgency='4'] { background: linear-gradient(90deg, rgba(242, 101, 58, .24), rgba(246, 153, 58, .06) 90%); }
+.todo[data-urgency='5'] { background: linear-gradient(90deg, rgba(238, 70, 76, .3), rgba(246, 153, 58, .1) 95%); }
 .todo[data-urgency='4'], .todo[data-urgency='5'] { border-bottom-color: transparent; }
 
 .urgency-picker { display: flex; align-items: center; gap: 4px; }

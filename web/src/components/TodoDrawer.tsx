@@ -278,12 +278,13 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
       <div className="todo-main">
         <div className="todo-title">{todo.title}</div>
         {todo.description && <TodoDescription text={todo.description} />}
-        {(project || todo.dueDate) && (
+        {(project || todo.dueDate || !todo.done) && (
           <div className="todo-meta">
             {project && (
               <span className="chip"><span className="pdot" style={{ background: project.color }} />{project.name}</span>
             )}
             {todo.dueDate && <DueBadge due={todo.dueDate} done={todo.done} />}
+            {!todo.done && <UrgencyFlame level={todo.urgency} className="todo-flame" />}
           </div>
         )}
         <TodoSourceLine todo={todo} onOpenDay={onOpenDay} />
@@ -298,7 +299,6 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
           </div>
         )}
       </div>
-      {!todo.done && <UrgencyFlame level={todo.urgency} className="todo-flame" />}
       {!confirmingDelete && (
         <div className="todo-actions">
           <button type="button" className="icon-btn" aria-label={`Edit "${todo.title}"`} onClick={() => setEditing(true)}><Icon name="edit" size={15} /></button>
