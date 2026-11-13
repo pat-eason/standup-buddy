@@ -258,6 +258,9 @@ func (s *Server) routes() http.Handler {
 		return nil, s.store.DeleteProject(r.Context(), id)
 	}))
 
+	// insights: day-to-day metrics and weekly recaps
+	s.insightRoutes(mux)
+
 	// search (also used by the agent's tools)
 	mux.HandleFunc("GET /api/search", h(func(r *http.Request) (any, error) {
 		q := r.URL.Query()

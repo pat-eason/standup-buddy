@@ -33,6 +33,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     items: [
       { keys: ['T'], label: 'Today' },
       { keys: ['H'], label: 'History' },
+      { keys: ['I'], label: 'Insights' },
       { keys: ['P'], label: 'Projects' },
       { keys: ['S'], label: 'Settings' },
       { keys: ['['], label: 'Previous day' },

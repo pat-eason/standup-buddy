@@ -7,6 +7,7 @@ export interface ShortcutActions {
   newNote: () => void;
   goToday: () => void;
   goHistory: () => void;
+  goInsights: () => void;
   goProjects: () => void;
   goSettings: () => void;
   prevDay: () => void;
@@ -54,6 +55,8 @@ export function useShortcuts(actions: ShortcutActions): void {
           return run(actions.goToday);
         case 'h':
           return run(actions.goHistory);
+        case 'i':
+          return run(actions.goInsights);
         case 'p':
           return run(actions.goProjects);
         case 's':

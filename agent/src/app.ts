@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { Collator } from './agents/collator.ts';
 import { Finalizer } from './agents/finalizer.ts';
 import { NotesAssistant } from './agents/notes-assistant.ts';
+import { Recapper } from './agents/recapper.ts';
 import { INTERNAL_TOKEN, refreshConfig } from './config.ts';
 import { captures } from './results.ts';
 
@@ -43,7 +44,7 @@ app.use('/agents/*', async (c, next) => {
 app.route('/agents/notes-assistant', createAgentRouter(NotesAssistant));
 
 // Internal: one-shot structured runs called by the Go API.
-const RUNNERS = { collate: Collator, finalize: Finalizer } as const;
+const RUNNERS = { collate: Collator, finalize: Finalizer, recap: Recapper } as const;
 
 app.post('/run/:kind', async (c) => {
   if (c.req.header('x-internal-token') !== INTERNAL_TOKEN) return c.json({ error: 'unauthorized' }, 401);

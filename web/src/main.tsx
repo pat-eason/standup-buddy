@@ -4,16 +4,18 @@ import '@fontsource-variable/inter';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { CaptureApp } from './CaptureApp';
 import { ToastProvider } from './components/ui';
 import './styles.css';
+
+// /capture is the minimal quick-note window (see scripts/quick-capture.sh).
+const isCapture = window.location.pathname.replace(/\/+$/, '') === '/capture';
 
 const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(
     <StrictMode>
-      <ToastProvider>
-        <App />
-      </ToastProvider>
+      <ToastProvider>{isCapture ? <CaptureApp /> : <App />}</ToastProvider>
     </StrictMode>,
   );
 }

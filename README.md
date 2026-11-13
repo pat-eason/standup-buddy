@@ -11,6 +11,7 @@ A web app for daily standups. Log a stream of consciousness through the day, tag
 - **Standup.** Run the meeting from the board. A category bar with counts (All, Updates, Questions, Decisions, Parking lot) filters it as you walk through. Check points off as they are discussed and add timestamped notes to each one, plus a free-form meeting notepad.
 - **Finalize.** After the standup, the LLM folds your notes into a summary with decisions made, action items, follow-ups and carry-over. Copy it as Markdown.
 - **Days.** Every day is stored on its own: its stream, collated points, notes and summary. Browse and search them under History.
+- **Insights.** A week view of what got done: updates per day with the change from the previous active day, whether the week is trending up or down, totals against last week, and activity per project. **Weekly recap** has the LLM read the week's standups and sort them into successes, misses, opportunities and risks, laid out as a SWOT matrix (strengths = successes, weaknesses = misses). The numbers are computed in the API; only the recap uses the model, and it reuses the finalize model.
 - **Ask your notes.** A chat agent searches everything you have recorded and answers with the day cited. Conversations are multi-turn and persist.
 
 ![Finalized summary with decisions, action items and follow-ups](docs/screenshots/wrap-up.png)
@@ -41,6 +42,23 @@ Standup Buddy is an installable PWA: web manifest, icons and a service worker th
 
 Use the `.localhost` address (or `localhost`) rather than a custom `*.local` name. Chrome only offers installation, and only hides the "Not secure" warning, on a secure origin, and plain-HTTP `*.local` hostnames are not one. They also hit a slow mDNS lookup on macOS. Installs from different addresses are separate apps, so pick one.
 
+## Quick note popup (global hotkey)
+
+A Spotlight-style popup for capturing a stream note from any app. A browser can't register a system-wide hotkey itself, so the pieces are:
+
+- **`/capture`**: a tiny page with just a note box and project chips. `Enter` saves the note to today's stream and closes the window, `Shift+Enter` adds a new line, `Esc` closes. The projects you pick are remembered.
+- **`scripts/quick-capture.sh`**: opens `/capture` as a small, centered Chrome app window (no tabs or address bar).
+- **A macOS shortcut** that runs the script when you press a hotkey.
+
+Set up the hotkey once:
+
+1. Open the **Shortcuts** app and create a new shortcut with a **Run Shell Script** action containing the absolute path to the script, for example `/Users/you/Projects/standup-buddy/scripts/quick-capture.sh`.
+2. Open the shortcut's details (ⓘ) and choose **Add Keyboard Shortcut**, then press your combination, such as `⌃⌥Space`. Avoid `⌘Space`, which is Spotlight.
+
+Alternatives: an Automator **Quick Action** with a keyboard shortcut under System Settings → Keyboard → Keyboard Shortcuts → Services, or a hotkey command in Raycast or Alfred.
+
+The script reads `STANDUP_BUDDY_URL`, `CAPTURE_WIDTH` and `CAPTURE_HEIGHT` from the environment, and `DRY_RUN=1` prints the Chrome command instead of running it. The installed app also lists **Quick note** as an app shortcut (right-click its icon).
+
 ## Keyboard shortcuts
 
 Single keys work anywhere except while typing in a field, so they never collide with browser shortcuts such as `⌘N`, `⌘T`, `⌘S` or `⌘J`. Press `?` in the app for the full list.
@@ -49,7 +67,7 @@ Single keys work anywhere except while typing in a field, so they never collide 
 | --- | --- |
 | `⌘/Ctrl` `K` or `C` | Toggle the chat |
 | `N` or `/` | New stream note |
-| `T` / `H` / `P` / `S` | Today / History / Projects / Settings |
+| `T` / `H` / `I` / `P` / `S` | Today / History / Insights / Projects / Settings |
 | `[` / `]` | Previous / next day |
 | `1` `2` `3` | Stream / Standup / Wrap-up tab |
 | `Shift` `C` / `Shift` `F` | Collate day / Finalize standup |

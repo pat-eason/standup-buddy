@@ -9,15 +9,17 @@ import { MOD_KEY } from './shortcuts';
 import { errMsg, fmtLong, fmtShort, localDate, shiftDate, useToast } from './components/ui';
 import { DayView } from './views/DayView';
 import { HistoryView } from './views/HistoryView';
+import { InsightsView } from './views/InsightsView';
 import { ProjectsView } from './views/ProjectsView';
 import { SettingsView } from './views/SettingsView';
 import { api } from './api';
 
-type View = 'day' | 'history' | 'projects' | 'settings';
+type View = 'day' | 'history' | 'insights' | 'projects' | 'settings';
 
 const NAV: { id: View; label: string; icon: string }[] = [
   { id: 'day', label: 'Today', icon: 'today' },
   { id: 'history', label: 'History', icon: 'history' },
+  { id: 'insights', label: 'Insights', icon: 'insights' },
   { id: 'projects', label: 'Projects', icon: 'folder' },
 ];
 const SETTINGS_NAV = { id: 'settings' as const, label: 'Settings', icon: 'settings' };
@@ -118,6 +120,7 @@ export function App() {
         if (today) setDate(today);
       },
       goHistory: () => setView('history'),
+      goInsights: () => setView('insights'),
       goProjects: () => setView('projects'),
       goSettings: () => setView('settings'),
       prevDay: () => {
@@ -224,6 +227,7 @@ export function App() {
             <DayView key={day.date} day={day} projects={projects} focusRequested={focusRequested} onFocusHandled={handleFocusHandled} reload={reload} setDay={updateDay} onCreateProject={createProject} />
           )}
           {view === 'history' && <HistoryView days={days} onOpen={openDay} />}
+          {view === 'insights' && today && <InsightsView today={today} onOpenDay={openDay} />}
           {view === 'projects' && <ProjectsView projects={projects} onChanged={reload} />}
           {view === 'settings' && <SettingsView />}
         </div>

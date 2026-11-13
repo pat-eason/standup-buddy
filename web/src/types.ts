@@ -137,3 +137,67 @@ export const MODEL_OPTIONS = [
   { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5' },
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5' },
 ];
+
+export type TrendDirection = 'up' | 'down' | 'flat' | 'insufficient';
+
+export interface Totals {
+  entries: number;
+  updates: number;
+  questions: number;
+  decisions: number;
+  parking: number;
+  discussed: number;
+  notes: number;
+  activeDays: number;
+}
+
+export interface DayMetrics {
+  date: string;
+  entries: number;
+  updates: number;
+  questions: number;
+  decisions: number;
+  parking: number;
+  discussed: number;
+  notes: number;
+  deltaUpdates: number | null;
+}
+
+export interface ProjectActivity {
+  projectId: number | null;
+  name: string;
+  color: string;
+  entries: number;
+  updates: number;
+  questions: number;
+  decisions: number;
+  parking: number;
+  total: number;
+}
+
+export interface MetricsReport {
+  from: string;
+  to: string;
+  days: DayMetrics[];
+  totals: Totals;
+  previous: Totals;
+  trend: { direction: TrendDirection; changePct: number | null };
+  projects: ProjectActivity[];
+}
+
+export interface WeeklyRecap {
+  headline: string;
+  summary: string;
+  successes: string[];
+  misses: string[];
+  opportunities: string[];
+  threats: string[];
+  generatedAt: string;
+}
+
+export interface WeekReport {
+  weekStart: string;
+  weekEnd: string;
+  metrics: MetricsReport;
+  recap: WeeklyRecap | null;
+}

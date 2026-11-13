@@ -8,6 +8,7 @@ import type {
   Project,
   SearchHit,
   SettingsPatch,
+  WeekReport,
 } from './types';
 
 export class ApiError extends Error {}
@@ -65,6 +66,9 @@ export const api = {
     if (!res.ok) throw new ApiError('Could not export the day');
     await navigator.clipboard.writeText(await res.text());
   },
+
+  getWeek: (date: string) => request<WeekReport>('GET', `/weeks/${date}`),
+  recapWeek: (date: string) => request<WeekReport>('POST', `/weeks/${date}/recap`),
 
   listProjects: () => request<Project[]>('GET', '/projects'),
   createProject: (name: string, color?: string) => request<Project>('POST', '/projects', { name, color }),
