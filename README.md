@@ -15,6 +15,7 @@ A web app for daily standups. Log a stream of consciousness through the day, tag
   - **In the summaries.** Todos created or completed on a day feed that day's collation (finished todos become updates) and its summary, and **Insights** shows todos created and completed per week.
 - **Days.** Every day is stored on its own: its stream, collated points, notes and summary. Browse and search them under History.
 - **Insights.** A week view of what got done: updates per day with the change from the previous active day, whether the week is trending up or down, totals against last week, todos created and completed, and activity per project. **Weekly recap** has the LLM read the week's standups and sort them into successes, misses, opportunities and risks, laid out as a SWOT matrix (strengths = successes, weaknesses = misses). The numbers are computed in the API; only the recap uses the model, and it reuses the finalize model.
+- **MCP server.** Let an AI client such as Claude Code check the day's status, add stream entries and standup items, trigger a collation, add notes to items, finalize the standup, manage todos, and read stream items, standup items and summaries by day. See [MCP server](#mcp-server).
 - **Ask your notes.** A chat agent searches everything you have recorded and answers with the day cited. Conversations are multi-turn and persist.
 
 ![Finalized summary with decisions, action items and follow-ups](docs/screenshots/wrap-up.png)
@@ -44,6 +45,44 @@ Standup Buddy is an installable PWA: web manifest, icons and a service worker th
 2. Click **Install** in the address bar, or ⋮ → **Cast, save, and share** → **Install page as app**.
 
 Use the `.localhost` address (or `localhost`) rather than a custom `*.local` name. Chrome only offers installation, and only hides the "Not secure" warning, on a secure origin, and plain-HTTP `*.local` hostnames are not one. They also hit a slow mDNS lookup on macOS. Installs from different addresses are separate apps, so pick one.
+
+## MCP server
+
+The Go API serves an [MCP](https://modelcontextprotocol.io) endpoint (streamable HTTP, official Go SDK) so an AI client can drive Standup Buddy. It starts with `docker compose up` and is served through the web port at `http://localhost:8080/mcp`. **Settings → MCP server** has copy-ready setup for Claude Code, Cursor/VS Code and Claude Desktop.
+
+```bash
+claude mcp add --transport http standup-buddy http://localhost:8080/mcp
+```
+
+| Tool | What it does |
+| --- | --- |
+| `get_day_status` | Status and counts for a day (default today) |
+| `add_stream_entry`, `add_standup_item` | Add to the stream, or straight to the board as an update, question, decision or parking-lot item |
+| `collate_day` | Trigger a collation |
+| `add_item_note` | Add a note to a standup item |
+| `finalize_standup` | Finalize the standup into its summary |
+| `add_todo`, `list_todos`, `delete_todo` | Manage todos |
+| `get_stream_items`, `get_standup_items`, `get_standup_summaries` | Read by `date`, or by `from`/`to` range |
+| `list_projects` | Project ids for tagging |
+
+The tools call the same store and jobs as the web UI. "Today" uses the API container's time zone, so set `TZ` in `.env` (for example `America/New_York`). Set `MCP_TOKEN` in `.env` to require `Authorization: Bearer <token>`. Like the app, it has no login otherwise and is bound to `127.0.0.1`.
+
+### Sample prompts
+
+Once connected, ask in plain language. The client picks the tools:
+
+- What's the status of my standup today?
+- Add to my stream: finished the migration review, waiting on Sam for sign-off. Tag it to the Platform project.
+- Add a decision item to today's standup: we ship the API change behind a flag first.
+- Collate today's stream into standup points, then show me the questions and decisions.
+- Add a note to the standup item about the migration: Sam will review by Thursday.
+- Finalize today's standup and list the action items.
+- Add a todo to write up the rollout plan, due next Friday.
+- Show my open todos and delete the one about the old dashboard.
+- What did I work on last week? Read my stream items for Monday to Friday.
+- Show me the standup summaries for the last three days and pull out anything that carried over.
+
+The client looks up project ids with `list_projects`, and item ids with `get_standup_items`, so you can refer to projects and points by name.
 
 ## Quick note popup (global hotkey)
 
@@ -83,12 +122,13 @@ Single keys work anywhere except while typing in a field, so they never collide 
 | Service | Tech | Role |
 | --- | --- | --- |
 | `web` | React 19 + Vite, `@flue/react`, nginx | UI; nginx proxies `/api` and `/agents` |
-| `api` | Go (`net/http`, pgx) | All data, prompts, settings and search; migrations run on every start |
+| `api` | Go (`net/http`, pgx, MCP Go SDK) | All data, prompts, settings, search and the `/mcp` endpoint; migrations run on every start |
 | `agent` | Node, [Flue](https://flueframework.com) 2.3 | LLM agents: collator, finalizer and the multi-turn notes assistant |
 | `db` | Postgres 17 | App data and Flue's conversation tables |
 
 - **Collate and finalize.** The Go API builds the prompt from the day's data and calls the agent service. A Flue agent returns its result through a terminating tool call (`submit_collation`, `submit_summary`), which the API validates and saves.
 - **Ask your notes.** The browser talks to the Flue `notes-assistant` agent directly through `useFlueAgent`. Its tools (`search_notes`, `get_day`, `list_days`, `list_projects`) call back into the Go API. Conversations are durable in Postgres.
+- **MCP.** The Go API mounts a stateless MCP endpoint at `/mcp` (nginx proxies it). Its tools call the same store and jobs as the UI, so there is no second copy of the logic. Setup instructions are under **Settings → MCP server**.
 - **Settings.** The friendly-due-dates toggle (saved in the browser), model per task (default `claude-haiku-5-5`), thinking level, tool toggles, extra prompt instructions and the API key. The agent service re-reads them from the API on each request.
 - **Layout.** Every view shares one content width. The sidebar collapses to an icon rail, and below tablet-portrait width the nav moves to the top.
 
@@ -106,7 +146,7 @@ docker compose up db -d                      # Postgres only (publish 5432 yours
 ## Repository layout
 
 ```
-api/     Go API; SQL migrations in api/migrations (embedded, applied on start)
+api/     Go API (MCP tools in mcp.go); SQL migrations in api/migrations (embedded, applied on start)
 agent/   Flue app: src/agents/*, src/app.ts (routes), src/db.ts (Postgres adapter)
 web/     React UI
 docs/    Screenshots used in this README

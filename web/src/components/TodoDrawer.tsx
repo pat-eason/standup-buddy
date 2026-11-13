@@ -153,6 +153,7 @@ const SOURCE_LABEL: Record<TodoSource, string> = {
   manual: 'Added manually',
   action_item: 'From an action item',
   suggested: 'Suggested in the standup',
+  mcp: 'Added via MCP',
 };
 
 /** Where the todo came from; todos created from a standup link back to that day's wrap-up. */

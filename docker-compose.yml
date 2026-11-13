@@ -29,6 +29,10 @@ services:
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:-dev-internal-token}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      # Match your browser's time zone so the MCP server's "today" agrees with the UI, e.g. America/New_York.
+      TZ: ${TZ:-UTC}
+      # Optional bearer token for MCP clients at /mcp. Empty = open (the app is bound to localhost).
+      MCP_TOKEN: ${MCP_TOKEN:-}
       PORT: "8080"
 
   agent:

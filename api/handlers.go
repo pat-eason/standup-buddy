@@ -286,6 +286,9 @@ func (s *Server) routes() http.Handler {
 		return nil, s.store.DeleteTodo(r.Context(), id)
 	}))
 
+	// MCP server for AI clients
+	mux.Handle("/mcp", s.mcpHandler())
+
 	// insights: day-to-day metrics and weekly recaps
 	s.insightRoutes(mux)
 
@@ -369,22 +372,26 @@ func (s *Server) routes() http.Handler {
 	return s.middleware(mux)
 }
 
-// runJob executes a long LLM job, rejecting a second concurrent run for the same day.
+// runJob executes a long LLM job for the request's {date}.
 func (s *Server) runJob(r *http.Request, name string, fn func(ctx context.Context, date string) error) (any, error) {
-	date := r.PathValue("date")
+	return s.runDayJob(r.Context(), name, r.PathValue("date"), fn)
+}
+
+// runDayJob executes a long LLM job, rejecting a second concurrent run for the same day.
+func (s *Server) runDayJob(parent context.Context, name, date string, fn func(ctx context.Context, date string) error) (DayRecord, error) {
 	if err := validDate(date); err != nil {
-		return nil, err
+		return DayRecord{}, err
 	}
 	key := name + ":" + date
 	if _, busy := s.inflight.LoadOrStore(key, struct{}{}); busy {
-		return nil, bad("%s is already running for %s", name, date)
+		return DayRecord{}, bad("%s is already running for %s", name, date)
 	}
 	defer s.inflight.Delete(key)
 	// Detach from client disconnects so a finished LLM call is still saved.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 4*time.Minute)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 4*time.Minute)
 	defer cancel()
 	if err := fn(ctx, date); err != nil {
-		return nil, err
+		return DayRecord{}, err
 	}
 	return s.store.GetDay(ctx, date)
 }

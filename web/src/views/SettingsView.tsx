@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { MODEL_OPTIONS, type AppInfo, type AppSettings, type SettingsPatch, type ThinkingLevel } from '../types';
 import { Icon } from '../components/Icon';
 import { Toggle, errMsg, useToast } from '../components/ui';
@@ -106,6 +106,89 @@ function PromptField({ value, onSave, label, placeholder }: { value: string; onS
   );
 }
 
+function CodeBlock({ code }: { code: string }) {
+  const toast = useToast();
+  return (
+    <div className="md" style={{ position: 'relative' }}>
+      <pre style={{ margin: '6px 0 0' }}><code>{code}</code></pre>
+      <button
+        className="btn btn-ghost"
+        style={{ position: 'absolute', top: 12, right: 6, padding: '2px 8px' }}
+        aria-label="Copy"
+        onClick={() => void navigator.clipboard.writeText(code).then(() => toast('Copied')).catch(() => toast('Copy failed', true))}
+      >
+        <Icon name="copy" size={14} />
+      </button>
+    </div>
+  );
+}
+
+const MCP_TOOLS: [string, string][] = [
+  ['get_day_status', 'Status and counts for a day (default today)'],
+  ['add_stream_entry', 'Add a stream entry'],
+  ['add_standup_item', 'Add an update, question, decision or parking-lot item'],
+  ['collate_day', 'Trigger a collation'],
+  ['add_item_note', 'Add a note to a standup item'],
+  ['finalize_standup', 'Finalize a standup'],
+  ['add_todo / list_todos / delete_todo', 'Manage todos'],
+  ['get_stream_items / get_standup_items / get_standup_summaries', 'Read by day or date range'],
+  ['list_projects', 'Project ids for tagging'],
+];
+
+const MCP_PROMPTS = [
+  "What's the status of my standup today?",
+  "Add to my stream: finished the migration review, waiting on Sam for sign-off. Tag it to the Platform project.",
+  "Add a decision item to today's standup: we ship the API change behind a flag first.",
+  "Collate today's stream into standup points, then show me the questions and decisions.",
+  "Add a note to the standup item about the migration: Sam will review by Thursday.",
+  "Finalize today's standup and list the action items.",
+  "Show my open todos and delete the one about the old dashboard.",
+  "What did I work on last week? Read my stream items for Monday to Friday.",
+];
+
+function McpCard() {
+  const url = `${window.location.origin}/mcp`;
+  const claudeCode = `claude mcp add --transport http standup-buddy ${url}`;
+  const json = JSON.stringify({ mcpServers: { 'standup-buddy': { type: 'http', url } } }, null, 2);
+  const desktop = JSON.stringify({ mcpServers: { 'standup-buddy': { command: 'npx', args: ['-y', 'mcp-remote', url] } } }, null, 2);
+  return (
+    <div className="card card-pad">
+      <h3 className="card-title"><Icon name="tool" size={20} /> MCP server</h3>
+      <div className="hint" style={{ margin: '6px 0 10px' }}>
+        Lets an AI client read and update your standups. It is built into the <code>api</code> service, so it starts with Docker Compose, and is served at:
+      </div>
+      <CodeBlock code={url} />
+      <Field name="Claude Code" hint="Run once in a terminal.">
+        <CodeBlock code={claudeCode} />
+      </Field>
+      <Field name="Cursor, VS Code and other HTTP clients" hint="Add to the client's MCP config (for example .cursor/mcp.json or .mcp.json).">
+        <CodeBlock code={json} />
+      </Field>
+      <Field name="Claude Desktop" hint="Add to claude_desktop_config.json (needs Node.js for the mcp-remote bridge), then restart.">
+        <CodeBlock code={desktop} />
+      </Field>
+      <Field name="Optional token" hint="Set MCP_TOKEN in .env and restart to require a bearer token. Claude Code: add --header &quot;Authorization: Bearer <token>&quot;; JSON: add a headers object.">
+        <span className="muted small">Unset by default; the app only listens on localhost.</span>
+      </Field>
+      <Field name="Time zone" hint='"Today" is computed by the server. Set TZ in .env (for example America/New_York) to match your browser, then run docker compose up -d.'>
+        <span className="muted small">Defaults to UTC.</span>
+      </Field>
+      <Field name="Sample prompts" hint="Ask in plain language; the client picks the tools.">
+        <ul className="small" style={{ margin: 0, paddingLeft: 18, display: 'grid', gap: 6 }}>
+          {MCP_PROMPTS.map((q) => <li key={q}>{q}</li>)}
+        </ul>
+      </Field>
+      <Field name="Tools" hint="What the server exposes.">
+        <dl className="kv">
+          {MCP_TOOLS.map(([n, d]) => (
+            <Fragment key={n}><dt><code>{n}</code></dt><dd>{d}</dd></Fragment>
+          ))}
+        </dl>
+      </Field>
+    </div>
+  );
+}
+
 export function SettingsView() {
   const toast = useToast();
   const [friendlyDates, setFriendlyDates] = usePreference(PREF_FRIENDLY_DATES, true);
@@ -197,6 +280,8 @@ export function SettingsView() {
             />
           </Field>
         </div>
+
+        <McpCard />
 
         <div className="card card-pad">
           <h3 className="card-title"><Icon name="edit" size={20} /> Prompts</h3>

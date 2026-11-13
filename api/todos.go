@@ -18,7 +18,7 @@ type Todo struct {
 	DueDate     *string    `json:"dueDate"`
 	Done        bool       `json:"done"`
 	CompletedAt *time.Time `json:"completedAt"`
-	// Source is manual, action_item or suggested; SourceDay is the standup it came from.
+	// Source is manual, action_item, suggested or mcp; SourceDay is the standup it came from.
 	Source    string    `json:"source"`
 	SourceDay *string   `json:"sourceDay"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -89,7 +89,7 @@ type todoInput struct {
 	Source      string  `json:"source"`
 }
 
-var todoSources = map[string]bool{"manual": true, "action_item": true, "suggested": true}
+var todoSources = map[string]bool{"manual": true, "action_item": true, "suggested": true, "mcp": true}
 
 func cleanDate(d *string) (*string, error) {
 	if d == nil || strings.TrimSpace(*d) == "" {
@@ -115,7 +115,8 @@ func (s *Store) CreateTodo(ctx context.Context, in todoInput) (Todo, error) {
 		return Todo{}, err
 	}
 	source := in.Source
-	if source == "" || src == nil {
+	// The standup sources only make sense with the day they came from.
+	if source == "" || ((source == "action_item" || source == "suggested") && src == nil) {
 		source = "manual"
 	}
 	if !todoSources[source] {
