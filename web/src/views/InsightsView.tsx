@@ -4,7 +4,7 @@ import { api } from '../api';
 import { Icon } from '../components/Icon';
 import { Markdown } from '../components/Markdown';
 import { PageTitle } from '../components/PageTitle';
-import { DailyChart, ProjectActivityList, StatCards, SwotMatrix, TrendBadge } from '../components/insights';
+import { DailyChart, ProjectActivityList, StatCards, SwotMatrix, TodoStats, TrendBadge } from '../components/insights';
 import { errMsg, fmtShort, shiftDate, useToast } from '../components/ui';
 
 const DAYS_PER_WEEK = 7;
@@ -126,7 +126,7 @@ interface WeekContentProps {
 
 function WeekContent({ report, generating, onGenerate, onOpenDay }: WeekContentProps) {
   const { metrics, recap } = report;
-  const hasActivity = metrics.totals.activeDays > 0;
+  const hasActivity = metrics.totals.activeDays > 0 || metrics.totals.todosCreated + metrics.totals.todosCompleted > 0;
 
   if (!hasActivity) {
     return (
@@ -140,6 +140,7 @@ function WeekContent({ report, generating, onGenerate, onOpenDay }: WeekContentP
   return (
     <>
       <StatCards metrics={metrics} />
+      <TodoStats metrics={metrics} />
 
       <section className="card card-pad stack">
         <div className="row between">

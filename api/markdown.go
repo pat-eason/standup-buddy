@@ -85,6 +85,15 @@ func (s *Server) dayMarkdown(ctx context.Context, date string) (string, error) {
 		list("Action items", actions)
 		list("Follow-ups", f.FollowUps)
 		list("Carry over", f.CarryOver)
+		todos := []string{}
+		for _, t := range f.SuggestedTodos {
+			line := t.Title
+			if t.DueDate != "" {
+				line += " (due " + t.DueDate + ")"
+			}
+			todos = append(todos, line)
+		}
+		list("Suggested todos", todos)
 	}
 	if n := strings.TrimSpace(d.GeneralNotes); n != "" {
 		fmt.Fprintf(&b, "## Meeting notes\n\n%s\n", n)

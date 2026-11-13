@@ -240,6 +240,9 @@ func normalizeFinal(f *Finalization) {
 	if f.CarryOver == nil {
 		f.CarryOver = []string{}
 	}
+	if f.SuggestedTodos == nil {
+		f.SuggestedTodos = []SuggestedTodo{}
+	}
 }
 
 func (s *Store) ListDays(ctx context.Context) ([]DaySummary, error) {

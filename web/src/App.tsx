@@ -3,9 +3,12 @@ import type { DayRecord, DaySummary, Project } from './types';
 import { ChatPopup } from './components/ChatPopup';
 import { Icon } from './components/Icon';
 import { TopbarTitleProvider, type TopbarTitle } from './components/PageTitle';
+import { TodoDrawer } from './components/TodoDrawer';
 import { ShortcutHelp } from './components/ShortcutHelp';
+import { PREF_TODOS_PINNED, useMediaQuery, usePreference } from './hooks/usePreference';
+import { onOpenTodosRequest, useTodos } from './hooks/useTodos';
 import { useShortcuts, type ShortcutActions } from './hooks/useShortcuts';
-import { MOD_KEY } from './shortcuts';
+import { MOD_KEY, emitDayAction, type DayTab } from './shortcuts';
 import { errMsg, fmtLong, fmtShort, localDate, shiftDate, useToast } from './components/ui';
 import { DayView } from './views/DayView';
 import { HistoryView } from './views/HistoryView';
@@ -23,6 +26,8 @@ const NAV: { id: View; label: string; icon: string }[] = [
   { id: 'projects', label: 'Projects', icon: 'folder' },
 ];
 const SETTINGS_NAV = { id: 'settings' as const, label: 'Settings', icon: 'settings' };
+// Pinning needs room for the nav, the page and a 400px column.
+const TABLET_LANDSCAPE = '(min-width: 1024px)';
 const COLLAPSE_KEY = 'standup-buddy.nav-collapsed';
 
 function readCollapsed(): boolean {
@@ -83,11 +88,27 @@ export function App() {
   const [date, setDate] = useState<string | null>(null);
   const [today, setToday] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [todosOpen, setTodosOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [helpOpen, setHelpOpen] = useState(false);
   const [pageTitle, setPageTitle] = useState<TopbarTitle | null>(null);
   const [focusRequested, setFocusRequested] = useState(false);
   const { day, days, projects, reload, updateDay } = useAppData(date);
+  const { todos } = useTodos();
+  const [pendingTab, setPendingTab] = useState<{ date: string; tab: DayTab } | null>(null);
+  const [pinPref, setPinPref] = usePreference(PREF_TODOS_PINNED, false);
+  const canPin = useMediaQuery(TABLET_LANDSCAPE);
+  const pinActive = canPin && pinPref;
+  const dockedTodos = todosOpen && pinActive;
+  useEffect(
+    () =>
+      onOpenTodosRequest(() => {
+        setTodosOpen(true);
+        if (!pinActive) setChatOpen(false);
+      }),
+    [pinActive],
+  );
+  const openTodoCount = todos.filter((t) => !t.done).length;
 
   useEffect(() => {
     const t = localDate();
@@ -105,9 +126,17 @@ export function App() {
 
   const shortcuts = useMemo<ShortcutActions>(
     () => ({
-      toggleChat: () => setChatOpen((o) => !o),
+      toggleChat: () => {
+        setChatOpen((o) => !o);
+        if (!pinActive) setTodosOpen(false);
+      },
+      toggleTodos: () => {
+        setTodosOpen((o) => !o);
+        if (!pinActive) setChatOpen(false);
+      },
       closeOverlays: () => {
         if (helpOpen) setHelpOpen(false);
+        else if (todosOpen) setTodosOpen(false);
         else setChatOpen(false);
       },
       newNote: () => {
@@ -133,9 +162,30 @@ export function App() {
       },
       showHelp: () => setHelpOpen(true),
     }),
-    [today, helpOpen],
+    [today, helpOpen, todosOpen, pinActive],
   );
   useShortcuts(shortcuts);
+
+  const openTodos = () => {
+    setTodosOpen(true);
+    if (!pinActive) setChatOpen(false);
+  };
+  const openChat = () => {
+    setChatOpen(true);
+    if (!pinActive) setTodosOpen(false);
+  };
+
+  // Source links from the todo list: show that day's wrap-up, and get out of the way unless pinned.
+  const openWrapUp = (d: string) => {
+    if (view === 'day' && date === d) emitDayAction({ type: 'tab', tab: 'wrap' });
+    else {
+      setPendingTab({ date: d, tab: 'wrap' });
+      setDate(d);
+      setView('day');
+    }
+    if (!pinActive) setTodosOpen(false);
+  };
+  const clearPendingTab = useCallback(() => setPendingTab(null), []);
 
   const handleFocusHandled = useCallback(() => setFocusRequested(false), []);
 
@@ -172,7 +222,7 @@ export function App() {
   );
 
   return (
-    <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
+    <div className={`shell ${collapsed ? 'collapsed' : ''} ${dockedTodos ? 'todos-pinned' : ''}`}>
       <aside className="sidebar">
         <div className="side-head">
           <div className="brand">
@@ -224,7 +274,7 @@ export function App() {
         <TopbarTitleProvider report={setPageTitle}>
         <div className="scroll">
           {view === 'day' && day && (
-            <DayView key={day.date} day={day} projects={projects} focusRequested={focusRequested} onFocusHandled={handleFocusHandled} reload={reload} setDay={updateDay} onCreateProject={createProject} />
+            <DayView key={day.date} day={day} initialTab={pendingTab?.date === day.date ? pendingTab.tab : undefined} onInitialTabHandled={clearPendingTab} projects={projects} focusRequested={focusRequested} onFocusHandled={handleFocusHandled} reload={reload} setDay={updateDay} onCreateProject={createProject} />
           )}
           {view === 'history' && <HistoryView days={days} onOpen={openDay} />}
           {view === 'insights' && today && <InsightsView today={today} onOpenDay={openDay} />}
@@ -234,11 +284,30 @@ export function App() {
         </TopbarTitleProvider>
       </main>
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
-      {chatOpen ? (
-        <ChatPopup onClose={() => setChatOpen(false)} />
-      ) : (
-        <button className="chat-fab" aria-label={`Ask your notes (${MOD_KEY}+K)`} data-tip={`Ask your notes  ${MOD_KEY}K`} onClick={() => setChatOpen(true)}>
-          <Icon name="sparkle" size={24} />
+      <TodoDrawer
+        open={todosOpen}
+        projects={projects}
+        pinned={pinActive}
+        canPin={canPin}
+        onTogglePin={() => setPinPref(!pinPref)}
+        onClose={() => setTodosOpen(false)}
+        onOpenDay={openWrapUp}
+      />
+      {chatOpen && <ChatPopup onClose={() => setChatOpen(false)} />}
+      {!chatOpen && !todosOpen && (
+        <button
+          className="chat-fab todo-fab"
+          aria-label={openTodoCount > 0 ? `Todos, ${openTodoCount} open (D)` : 'Todos (D)'}
+          data-tip="Todos  D"
+          onClick={() => openTodos()}
+        >
+          <Icon name="todo" size={16} />
+          {openTodoCount > 0 && <span className="fab-badge" aria-hidden>{openTodoCount > 99 ? '99+' : openTodoCount}</span>}
+        </button>
+      )}
+      {!chatOpen && (!todosOpen || pinActive) && (
+        <button className="chat-fab" aria-label={`Ask your notes (${MOD_KEY}+K)`} data-tip={`Ask your notes  ${MOD_KEY}K`} onClick={() => openChat()}>
+          <Icon name="sparkle" size={16} />
         </button>
       )}
     </div>

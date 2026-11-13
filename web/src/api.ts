@@ -8,6 +8,9 @@ import type {
   Project,
   SearchHit,
   SettingsPatch,
+  Todo,
+  TodoInput,
+  TodoPatch,
   WeekReport,
 } from './types';
 
@@ -81,6 +84,11 @@ export const api = {
   renameThread: (id: string, title: string) => request<void>('PATCH', `/threads/${id}`, { title }),
   deleteThread: (id: string) => request<void>('DELETE', `/threads/${id}`),
   clearThreads: () => request<void>('DELETE', '/threads'),
+
+  listTodos: () => request<Todo[]>('GET', '/todos'),
+  createTodo: (input: TodoInput) => request<Todo>('POST', '/todos', input),
+  updateTodo: (id: number, patch: TodoPatch) => request<Todo>('PATCH', `/todos/${id}`, patch),
+  deleteTodo: (id: number) => request<void>('DELETE', `/todos/${id}`),
 
   getSettings: () => request<AppSettings>('GET', '/settings'),
   saveSettings: (patch: SettingsPatch) => request<AppSettings>('PATCH', '/settings', patch),

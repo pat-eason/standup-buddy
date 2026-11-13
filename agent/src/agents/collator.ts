@@ -52,6 +52,7 @@ Rules:
 - Order points so that points of the same group sit together; order updates by importance, then questions, decisions and parking.
 - "projects": use only names from the provided project list (exact spelling); leave empty when none apply.
 - "sources": the numeric ids of the stream entries each point came from.
+- The input may list "Todos completed today" and "Todos created today". A completed todo is evidence of finished work: turn it into an update (past tense) unless a stream entry already covers it. A created todo that is a blocker or open question may become a question or parking point; routine new todos can be left out. Never output a todo as-is, and never invent detail beyond its title and description. Todos have no source entry ids, so give such points empty sources.
 - Points already on the board ("kept points") stay as they are: do not output them again or restate them.
 - Call submit_collation exactly once with the complete list, then stop. Do not write any other text.${userContext()}${extra('Extra instructions from the user', cfg.collateInstructions)}`;
 }

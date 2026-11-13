@@ -113,13 +113,13 @@ input, textarea, select { font: inherit; color: inherit; }
 
 /* Floating "ask your notes" button, lower right. */
 .chat-fab {
-  position: fixed; right: 24px; bottom: 24px; z-index: 40; width: 58px; height: 58px; border-radius: 50%;
+  position: fixed; right: 24px; bottom: 24px; z-index: 40; width: 32px; height: 32px; border-radius: 50%;
   background: var(--accent); color: #fff; display: grid; place-items: center;
   box-shadow: 0 10px 26px rgba(255, 90, 95, 0.42), 0 2px 6px rgba(23, 59, 79, 0.18);
   transition: transform .15s, box-shadow .15s;
 }
 .chat-fab:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 14px 32px rgba(255, 90, 95, 0.5), 0 2px 6px rgba(23, 59, 79, 0.18); }
-.chat-fab::before { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--accent); opacity: .35; animation: ring 2.6s ease-out infinite; }
+.chat-fab::before { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--accent); opacity: .35; animation: ring 2.6s ease-out infinite; }
 @keyframes ring { 0% { transform: scale(.9); opacity: .45; } 100% { transform: scale(1.35); opacity: 0; } }
 .chat-fab:hover::after, .chat-fab:focus-visible::after {
   content: attr(data-tip); position: absolute; right: calc(100% + 12px); top: 50%; transform: translateY(-50%);
@@ -454,7 +454,7 @@ button.chip:hover { border-color: var(--secondary-40); }
   .topbar { grid-template-columns: 1fr; justify-items: center; }
   .scroll { padding: 56px 16px 96px; }
   .page { gap: 18px; }
-  .chat-fab { right: 16px; bottom: 16px; width: 54px; height: 54px; }
+  .chat-fab { right: 16px; bottom: 16px; width: 32px; height: 32px; }
   .chat { right: 12px; bottom: 12px; width: min(430px, calc(100vw - 24px)); height: min(640px, calc(100dvh - 24px)); }
   .hero-left h1 { font-size: 34px; }
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -573,3 +573,98 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
   .swot { grid-template-columns: minmax(0, 1fr); padding-left: 0; }
   .swot-axis { display: none; }
 }
+
+/* ---------- todos ---------- */
+.todo-fab { right: 68px; background: var(--secondary); box-shadow: 0 10px 26px rgba(23, 59, 79, 0.35), 0 2px 6px rgba(23, 59, 79, 0.18); }
+.todo-fab::before { display: none; }
+.todo-backdrop { position: fixed; inset: 0; z-index: 45; background: rgba(23, 59, 79, 0.18); animation: fade .2s ease-out; }
+.todo-drawer {
+  --todo-w: 400px;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(var(--todo-w), 100vw); z-index: 50; display: flex; flex-direction: column;
+  background: var(--primary-50); box-shadow: var(--shadow-lg); border-left: 1px solid var(--glass-border);
+  transform: translateX(100%); visibility: hidden;
+  transition: transform .24s cubic-bezier(.3, .8, .3, 1), visibility 0s linear .24s;
+}
+.todo-drawer.open { transform: none; visibility: visible; transition: transform .24s cubic-bezier(.3, .8, .3, 1), visibility 0s; }
+/* Pinned: a third grid column of the shell, so the page is pushed aside instead of covered. */
+.todo-drawer.docked { position: relative; grid-column: 3; justify-self: end; width: var(--todo-w); height: 100%; box-shadow: none; z-index: 1; transition: none; }
+@media (prefers-reduced-motion: reduce) { .todo-drawer, .todo-drawer.open { transition: none; } .todo-backdrop { animation: none; } }
+.shell { --todo-w: 400px; }
+/* The third track always exists at desktop widths (0px when unpinned) so grid-template-columns can transition. */
+@media (min-width: 1024px) {
+  .shell { grid-template-columns: var(--nav-w) minmax(0, 1fr) var(--pin-w, 0px); }
+  .shell.todos-pinned { --pin-w: var(--todo-w); }
+  .chat-fab { transition: transform .15s, box-shadow .15s, right .22s ease; }
+  .chat { transition: right .22s ease, width .22s ease; }
+}
+@media (prefers-reduced-motion: reduce) { .shell, .chat-fab, .chat { transition: none; } }
+.shell.todos-pinned .chat-fab { right: calc(var(--todo-w) + 24px); }
+.shell.todos-pinned .chat { right: calc(var(--todo-w) + 24px); width: min(430px, calc(100vw - var(--nav-w) - var(--todo-w) - 48px)); }
+.pin-btn.on { background: rgba(191,230,211,.2); color: var(--primary); }
+.fab-badge { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--primary-50); }
+.todo-fab:hover::after { right: calc(100% + 12px); }
+.todo-head { background: var(--secondary); color: var(--primary-100); padding: 14px 14px 14px 18px; display: flex; align-items: center; gap: 10px; }
+.todo-head h4 { color: var(--primary); font-size: 18px; }
+.todo-head .icon-btn { color: rgba(214,240,226,.75); }
+.todo-head .icon-btn:hover { background: rgba(191,230,211,.15); color: #fff; }
+.todo-add { padding: 12px 14px; border-bottom: 1px solid var(--secondary-08); }
+.todo-form { display: flex; flex-direction: column; gap: 8px; }
+.todo-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.todo-form-actions { display: flex; align-items: center; gap: 8px; }
+.todo-body { flex: 1; overflow-y: auto; padding: 8px 14px 24px; }
+.todo-empty { padding: 20px 4px; }
+.todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.todo { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--secondary-08); }
+.todo.editing { display: block; }
+.todo-check { flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 7px; border: 1.5px solid var(--secondary-40); display: grid; place-items: center; color: var(--primary-50); background: #fff; }
+.todo.done .todo-check { background: var(--secondary); border-color: var(--secondary); }
+.todo-check:hover { border-color: var(--secondary); }
+.todo-main { flex: 1; min-width: 0; }
+.todo-title { font-weight: 500; overflow-wrap: anywhere; }
+.todo.done .todo-title { text-decoration: line-through; color: var(--secondary-60); }
+.todo-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+.todo-due { font-size: 12px; color: var(--secondary-60); }
+.todo-due.overdue { color: var(--accent-strong); font-weight: 600; }
+.todo-actions { display: flex; opacity: 0; transition: opacity .12s; }
+.todo:hover .todo-actions, .todo:focus-within .todo-actions { opacity: 1; }
+@media (hover: none) { .todo-actions { opacity: 1; } }
+.todo-done { margin-top: 18px; }
+.todo-done summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--secondary-60); padding: 6px 0; }
+.suggested-todos { grid-column: 1 / -1; }
+.suggested-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.suggested-list li { display: flex; align-items: center; gap: 12px; }
+.suggested-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.stats-half { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.btn-danger { background: var(--accent); color: #fff; }
+.btn-danger:not(:disabled):hover { background: var(--accent-strong); }
+.todo-confirm { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12.5px; flex-wrap: wrap; }
+.todo-confirm span { font-weight: 600; margin-right: auto; }
+.todo-completed { font-size: 12px; color: var(--secondary-60); margin-top: 6px; }
+.todo-desc { display: block; width: 100%; text-align: left; font-size: 12.5px; color: var(--secondary-60); margin-top: 2px; overflow-wrap: anywhere; }
+.todo-desc-text { display: block; white-space: pre-wrap; }
+.todo-desc-text.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.todo-desc.expandable { cursor: pointer; }
+.todo-desc.expandable:hover { color: var(--secondary); }
+.li-row { display: flex; align-items: center; gap: 10px; }
+.li-text { flex: 1; min-width: 0; }
+.li-add { flex: none; position: relative; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; }
+.li-add:hover:not(:disabled), .li-add:focus-visible { background: var(--accent-strong); color: #fff; }
+.li-add.added { background: var(--secondary-15); color: var(--secondary); }
+.li-add:disabled { cursor: default; }
+.li-add:hover::after, .li-add:focus-visible::after {
+  content: attr(data-tip); position: absolute; right: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+  background: var(--secondary); color: var(--primary-50); padding: 4px 10px; border-radius: 8px; font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; z-index: 20;
+}
+@media (max-width: 640px) { .todo-fab { right: 60px; } }
+
+/* Accent pulse on a todo that was just added from the standup summary: three pulses. */
+.todo.pulse { border-radius: 10px; animation: todo-pulse .6s ease-in-out .2s 3; }
+@keyframes todo-pulse {
+  0%, 100% { background: transparent; box-shadow: 0 0 0 0 rgba(255, 90, 95, 0); }
+  50% { background: rgba(255, 90, 95, .22); box-shadow: 0 0 0 6px rgba(255, 90, 95, .22); }
+}
+@media (prefers-reduced-motion: reduce) { .todo.pulse { animation: none; background: rgba(255, 90, 95, .16); } }
+.todo-source { font-size: 12px; color: var(--secondary-60); margin-top: 6px; }
+.todo-source-link { font: inherit; color: var(--secondary); font-weight: 600; text-decoration: underline; text-decoration-color: var(--secondary-40); text-underline-offset: 2px; }
+.todo-source-link:hover { text-decoration-color: var(--secondary); }
+.todo.leaving { pointer-events: none; }

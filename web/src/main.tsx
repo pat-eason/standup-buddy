@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { CaptureApp } from './CaptureApp';
 import { ToastProvider } from './components/ui';
+import { TodosProvider } from './hooks/useTodos';
 import './styles.css';
 
 // /capture is the minimal quick-note window (see scripts/quick-capture.sh).
@@ -15,7 +16,7 @@ const root = document.getElementById('root');
 if (root) {
   createRoot(root).render(
     <StrictMode>
-      <ToastProvider>{isCapture ? <CaptureApp /> : <App />}</ToastProvider>
+      <ToastProvider>{isCapture ? <CaptureApp /> : <TodosProvider><App /></TodosProvider>}</ToastProvider>
     </StrictMode>,
   );
 }
