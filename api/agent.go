@@ -89,7 +89,11 @@ func (s *Server) collateDay(ctx context.Context, date string) error {
 	if day.Status == "finalized" {
 		return bad("reopen the standup before collating again")
 	}
-	if len(day.Entries) == 0 {
+	created, completed, err := s.store.TodosForDay(ctx, date)
+	if err != nil {
+		return err
+	}
+	if len(day.Entries) == 0 && len(created)+len(completed) == 0 {
 		return bad("add some stream-of-consciousness entries first")
 	}
 	projects, err := s.store.ListProjects(ctx)
@@ -145,6 +149,11 @@ func (s *Server) collateDay(ctx context.Context, date string) error {
 	if groups := existingGroups(day.Points); len(groups) > 0 {
 		fmt.Fprintf(&b, "\nGroups already in use (reuse these names where the theme matches): %s\n", strings.Join(groups, ", "))
 	}
+	todoSection, err := s.todoPromptSection(ctx, date, nameByID)
+	if err != nil {
+		return err
+	}
+	b.WriteString(todoSection)
 	b.WriteString("\nCollate this into the standup board and call submit_collation.")
 
 	raw, err := s.agent.Run(ctx, "collate", fmt.Sprintf("collate-%s-%d", date, time.Now().UnixMilli()), b.String())
@@ -241,6 +250,29 @@ func (s *Server) finalizeDay(ctx context.Context, date string) error {
 	if notes == "" {
 		notes = "(none)"
 	}
+	todoSection, err := s.todoPromptSection(ctx, date, nameByID)
+	if err != nil {
+		return err
+	}
+	b.WriteString(todoSection)
+	if open, err := s.store.ListTodos(ctx); err == nil {
+		lines := []string{}
+		for _, t := range open {
+			if !t.Done {
+				lines = append(lines, todoLine(t, nameByID))
+			}
+		}
+		if len(lines) > 0 {
+			fmt.Fprintf(&b, "\nOpen todos already on the list (do not suggest these again):\n%s\n", strings.Join(lines, "\n"))
+		}
+	}
+	activeProjects := []string{}
+	for _, p := range projects {
+		if !p.Archived {
+			activeProjects = append(activeProjects, p.Name)
+		}
+	}
+	fmt.Fprintf(&b, "\nProjects: %s\n", orDash(strings.Join(activeProjects, ", ")))
 	fmt.Fprintf(&b, "\nFree-form meeting notes:\n%s\n\nWrite the finalized standup summary and call submit_summary.", notes)
 
 	raw, err := s.agent.Run(ctx, "finalize", fmt.Sprintf("finalize-%s-%d", date, time.Now().UnixMilli()), b.String())
@@ -254,6 +286,7 @@ func (s *Server) finalizeDay(ctx context.Context, date string) error {
 	if strings.TrimSpace(f.Headline) == "" && strings.TrimSpace(f.Summary) == "" {
 		return errors.New("the model returned an empty summary")
 	}
+	f.SuggestedTodos = cleanSuggestedTodos(f.SuggestedTodos)
 	return s.store.SaveFinalization(ctx, date, f)
 }
 
@@ -273,6 +306,24 @@ func existingGroups(points []Point) []string {
 			seen[strings.ToLower(g)] = true
 			out = append(out, g)
 		}
+	}
+	return out
+}
+
+// cleanSuggestedTodos drops blank titles and malformed due dates the model may emit.
+func cleanSuggestedTodos(in []SuggestedTodo) []SuggestedTodo {
+	out := make([]SuggestedTodo, 0, len(in))
+	for _, t := range in {
+		t.Title = clip(strings.TrimSpace(t.Title), 200)
+		if t.Title == "" {
+			continue
+		}
+		t.Description = strings.TrimSpace(t.Description)
+		t.Project = strings.TrimSpace(t.Project)
+		if validDate(t.DueDate) != nil {
+			t.DueDate = ""
+		}
+		out = append(out, t)
 	}
 	return out
 }

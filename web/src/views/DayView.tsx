@@ -165,7 +165,7 @@ export function DayView({ day, projects, focusRequested, onFocusHandled, reload,
           <StandupTab day={day} projects={projects} onChanged={reload} onFinalize={() => void run('finalizing', 'wrap')} finalizing={job === 'finalizing'} />
         ))}
       {tab === 'wrap' && (
-        <WrapTab day={day} finalizing={job === 'finalizing'} onFinalize={() => void run('finalizing', 'wrap')} onReopen={() => void reopen()} />
+        <WrapTab day={day} projects={projects} finalizing={job === 'finalizing'} onFinalize={() => void run('finalizing', 'wrap')} onReopen={() => void reopen()} />
       )}
     </div>
   );

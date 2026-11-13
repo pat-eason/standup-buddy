@@ -258,6 +258,34 @@ func (s *Server) routes() http.Handler {
 		return nil, s.store.DeleteProject(r.Context(), id)
 	}))
 
+	// todos
+	mux.HandleFunc("GET /api/todos", h(func(r *http.Request) (any, error) { return s.store.ListTodos(r.Context()) }))
+	mux.HandleFunc("POST /api/todos", h(func(r *http.Request) (any, error) {
+		var in todoInput
+		if err := decode(r, &in); err != nil {
+			return nil, err
+		}
+		return s.store.CreateTodo(r.Context(), in)
+	}))
+	mux.HandleFunc("PATCH /api/todos/{id}", h(func(r *http.Request) (any, error) {
+		id, err := pathID(r, "id")
+		if err != nil {
+			return nil, err
+		}
+		var p todoPatch
+		if err := decode(r, &p); err != nil {
+			return nil, err
+		}
+		return s.store.UpdateTodo(r.Context(), id, p)
+	}))
+	mux.HandleFunc("DELETE /api/todos/{id}", h(func(r *http.Request) (any, error) {
+		id, err := pathID(r, "id")
+		if err != nil {
+			return nil, err
+		}
+		return nil, s.store.DeleteTodo(r.Context(), id)
+	}))
+
 	// insights: day-to-day metrics and weekly recaps
 	s.insightRoutes(mux)
 

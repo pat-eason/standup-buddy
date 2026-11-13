@@ -48,6 +48,14 @@ type ActionItem struct {
 	Owner string `json:"owner,omitempty"`
 }
 
+// SuggestedTodo is a todo the summary recommends; the UI offers a quick-add button for each.
+type SuggestedTodo struct {
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"`
+	Project     string `json:"project,omitempty"`
+	DueDate     string `json:"dueDate,omitempty"`
+}
+
 type Finalization struct {
 	Headline    string       `json:"headline"`
 	Summary     string       `json:"summary"`
@@ -55,6 +63,8 @@ type Finalization struct {
 	ActionItems []ActionItem `json:"actionItems"`
 	FollowUps   []string     `json:"followUps"`
 	CarryOver   []string     `json:"carryOver"`
+	// SuggestedTodos is empty for days finalized before todos existed.
+	SuggestedTodos []SuggestedTodo `json:"suggestedTodos"`
 }
 
 type DayRecord struct {

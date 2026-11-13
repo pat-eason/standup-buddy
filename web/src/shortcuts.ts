@@ -64,8 +64,9 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     items: [
       { keys: [MOD_KEY, 'K'], label: 'Toggle chat' },
       { keys: ['C'], label: 'Toggle chat' },
+      { keys: ['D'], label: 'Toggle todo drawer' },
       { keys: ['?'], label: 'Show shortcuts' },
-      { keys: ['Esc'], label: 'Close chat or dialog' },
+      { keys: ['Esc'], label: 'Close drawer, chat or dialog' },
     ],
   },
 ];

@@ -3,6 +3,7 @@ import type { DayRecord, DaySummary, Project } from './types';
 import { ChatPopup } from './components/ChatPopup';
 import { Icon } from './components/Icon';
 import { TopbarTitleProvider, type TopbarTitle } from './components/PageTitle';
+import { TodoDrawer } from './components/TodoDrawer';
 import { ShortcutHelp } from './components/ShortcutHelp';
 import { useShortcuts, type ShortcutActions } from './hooks/useShortcuts';
 import { MOD_KEY } from './shortcuts';
@@ -83,6 +84,7 @@ export function App() {
   const [date, setDate] = useState<string | null>(null);
   const [today, setToday] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const [todosOpen, setTodosOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [helpOpen, setHelpOpen] = useState(false);
   const [pageTitle, setPageTitle] = useState<TopbarTitle | null>(null);
@@ -105,9 +107,17 @@ export function App() {
 
   const shortcuts = useMemo<ShortcutActions>(
     () => ({
-      toggleChat: () => setChatOpen((o) => !o),
+      toggleChat: () => {
+        setChatOpen((o) => !o);
+        setTodosOpen(false);
+      },
+      toggleTodos: () => {
+        setTodosOpen((o) => !o);
+        setChatOpen(false);
+      },
       closeOverlays: () => {
         if (helpOpen) setHelpOpen(false);
+        else if (todosOpen) setTodosOpen(false);
         else setChatOpen(false);
       },
       newNote: () => {
@@ -133,7 +143,7 @@ export function App() {
       },
       showHelp: () => setHelpOpen(true),
     }),
-    [today, helpOpen],
+    [today, helpOpen, todosOpen],
   );
   useShortcuts(shortcuts);
 
@@ -234,12 +244,17 @@ export function App() {
         </TopbarTitleProvider>
       </main>
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
-      {chatOpen ? (
-        <ChatPopup onClose={() => setChatOpen(false)} />
-      ) : (
-        <button className="chat-fab" aria-label={`Ask your notes (${MOD_KEY}+K)`} data-tip={`Ask your notes  ${MOD_KEY}K`} onClick={() => setChatOpen(true)}>
-          <Icon name="sparkle" size={24} />
-        </button>
+      {todosOpen && <TodoDrawer projects={projects} onClose={() => setTodosOpen(false)} />}
+      {chatOpen && <ChatPopup onClose={() => setChatOpen(false)} />}
+      {!chatOpen && !todosOpen && (
+        <>
+          <button className="chat-fab todo-fab" aria-label={`Todos (D)`} data-tip="Todos  D" onClick={() => { setTodosOpen(true); setChatOpen(false); }}>
+            <Icon name="todo" size={24} />
+          </button>
+          <button className="chat-fab" aria-label={`Ask your notes (${MOD_KEY}+K)`} data-tip={`Ask your notes  ${MOD_KEY}K`} onClick={() => setChatOpen(true)}>
+            <Icon name="sparkle" size={24} />
+          </button>
+        </>
       )}
     </div>
   );

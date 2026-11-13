@@ -10,6 +10,7 @@ A web app for daily standups. Log a stream of consciousness through the day, tag
 - **Collate.** One click turns the day's stream into four lists: updates, outstanding questions, decision points and a parking lot. Points are grouped under short themes, and each carries a **why** note: a talking point explaining why it is on the board, grounded in your stream entries (click it to edit). Re-collating keeps anything you edited, checked off, annotated or added yourself.
 - **Standup.** Run the meeting from the board. A category bar with counts (All, Updates, Questions, Decisions, Parking lot) filters it as you walk through. Check points off as they are discussed and add timestamped notes to each one, plus a free-form meeting notepad.
 - **Finalize.** After the standup, the LLM folds your notes into a summary with decisions made, action items, follow-ups and carry-over. Copy it as Markdown.
+- **Todos.** A todo list (title, description, project, due date) lives in a drawer that slides in from the right. Open it with the checklist button beside the chat button or press `D`. Finalizing a standup also recommends todos, each with a **Quick add** button (or **Add all**). Todos created or completed on a day are fed into that day's collation (finished todos become updates) and its summary.
 - **Days.** Every day is stored on its own: its stream, collated points, notes and summary. Browse and search them under History.
 - **Insights.** A week view of what got done: updates per day with the change from the previous active day, whether the week is trending up or down, totals against last week, and activity per project. **Weekly recap** has the LLM read the week's standups and sort them into successes, misses, opportunities and risks, laid out as a SWOT matrix (strengths = successes, weaknesses = misses). The numbers are computed in the API; only the recap uses the model, and it reuses the finalize model.
 - **Ask your notes.** A chat agent searches everything you have recorded and answers with the day cited. Conversations are multi-turn and persist.
@@ -66,6 +67,7 @@ Single keys work anywhere except while typing in a field, so they never collide 
 | Key | Action |
 | --- | --- |
 | `⌘/Ctrl` `K` or `C` | Toggle the chat |
+| `D` | Toggle the todo drawer |
 | `N` or `/` | New stream note |
 | `T` / `H` / `I` / `P` / `S` | Today / History / Insights / Projects / Settings |
 | `[` / `]` | Previous / next day |

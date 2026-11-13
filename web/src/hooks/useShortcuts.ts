@@ -3,6 +3,7 @@ import { emitDayAction, type DayTab } from '../shortcuts';
 
 export interface ShortcutActions {
   toggleChat: () => void;
+  toggleTodos: () => void;
   closeOverlays: () => void;
   newNote: () => void;
   goToday: () => void;
@@ -67,6 +68,8 @@ export function useShortcuts(actions: ShortcutActions): void {
           return run(actions.nextDay);
         case 'c':
           return run(actions.toggleChat);
+        case 'd':
+          return run(actions.toggleTodos);
         case '?':
           return run(actions.showHelp);
         case 'C':

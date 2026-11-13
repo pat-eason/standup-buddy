@@ -1,4 +1,6 @@
-import type { DayRecord } from '../types';
+import { useRef } from 'react';
+import type { DayRecord, Project, SuggestedTodo } from '../types';
+import { useTodos } from '../hooks/useTodos';
 import { Icon } from '../components/Icon';
 import { Markdown } from '../components/Markdown';
 import { errMsg, fmtShort, fmtTime, useToast } from '../components/ui';
@@ -21,13 +23,78 @@ function ListBox({ title, items }: { title: string; items: { text: string; owner
   );
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function SuggestedTodos({ day, projects }: { day: DayRecord; projects: Project[] }) {
+  const { todos, add } = useTodos();
+  const inFlight = useRef(new Set<string>());
+  const suggestions = day.finalization?.suggestedTodos ?? [];
+  if (suggestions.length === 0) return null;
+
+  const key = (t: SuggestedTodo) => t.title.trim().toLowerCase();
+  const isAdded = (t: SuggestedTodo) => todos.some((x) => x.sourceDay === day.date && x.title.toLowerCase() === key(t));
+
+  const quickAdd = async (t: SuggestedTodo) => {
+    // Synchronous guard: a fast double-click must not create two todos.
+    if (inFlight.current.has(key(t)) || isAdded(t)) return;
+    inFlight.current.add(key(t));
+    try {
+      const project = projects.find((p) => p.name.toLowerCase() === t.project?.trim().toLowerCase());
+      await add({
+        title: t.title,
+        description: t.description ?? '',
+        projectId: project?.id ?? null,
+        dueDate: t.dueDate && ISO_DATE.test(t.dueDate) ? t.dueDate : null,
+        sourceDay: day.date,
+      });
+    } finally {
+      inFlight.current.delete(key(t));
+    }
+  };
+
+  const pending = suggestions.filter((t) => !isAdded(t));
+  return (
+    <div className="wrap-box suggested-todos">
+      <div className="row">
+        <h4>Suggested todos</h4>
+        <span className="spacer" />
+        {pending.length > 1 && (
+          <button className="btn btn-ghost btn-sm" onClick={() => void Promise.all(pending.map(quickAdd))}>
+            <Icon name="plus" size={14} /> Add all
+          </button>
+        )}
+      </div>
+      <ul className="suggested-list">
+        {suggestions.map((t) => {
+          const added = isAdded(t);
+          return (
+            <li key={t.title}>
+              <div className="suggested-text">
+                <div>{t.title}</div>
+                {(t.project || t.dueDate) && (
+                  <div className="small muted">{[t.project, t.dueDate && `due ${t.dueDate}`].filter(Boolean).join(' · ')}</div>
+                )}
+              </div>
+              <button className="btn btn-ghost btn-sm" disabled={added} onClick={() => void quickAdd(t)}>
+                <Icon name={added ? 'check' : 'plus'} size={14} /> {added ? 'Added' : 'Quick add'}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function WrapTab({
   day,
+  projects,
   finalizing,
   onFinalize,
   onReopen,
 }: {
   day: DayRecord;
+  projects: Project[];
   finalizing: boolean;
   onFinalize: () => void;
   onReopen: () => void;
@@ -79,6 +146,7 @@ export function WrapTab({
         <ListBox title="Follow-ups" items={f.followUps.map((text) => ({ text }))} />
         <ListBox title="Carry over" items={f.carryOver.map((text) => ({ text }))} />
       </div>
+      <SuggestedTodos day={day} projects={projects} />
     </div>
   );
 }

@@ -61,6 +61,43 @@ export interface ActionItem {
   owner?: string;
 }
 
+export interface SuggestedTodo {
+  title: string;
+  description?: string;
+  project?: string;
+  dueDate?: string;
+}
+
+export interface Todo {
+  id: number;
+  title: string;
+  description: string;
+  projectId: number | null;
+  dueDate: string | null;
+  done: boolean;
+  completedAt: string | null;
+  sourceDay: string | null;
+  createdAt: string;
+}
+
+export interface TodoInput {
+  title: string;
+  description?: string;
+  projectId?: number | null;
+  dueDate?: string | null;
+  sourceDay?: string | null;
+}
+
+export interface TodoPatch {
+  title?: string;
+  description?: string;
+  projectId?: number;
+  clearProject?: boolean;
+  dueDate?: string;
+  clearDueDate?: boolean;
+  done?: boolean;
+}
+
 export interface Finalization {
   headline: string;
   summary: string;
@@ -68,6 +105,7 @@ export interface Finalization {
   actionItems: ActionItem[];
   followUps: string[];
   carryOver: string[];
+  suggestedTodos: SuggestedTodo[];
 }
 
 export interface DayRecord {
