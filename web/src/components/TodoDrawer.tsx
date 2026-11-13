@@ -1,8 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import type { Project, Todo, TodoInput, TodoSource } from '../types';
+import type { Project, Todo, TodoInput, TodoSource, Urgency } from '../types';
 import { PREF_FRIENDLY_DATES, usePreference } from '../hooks/usePreference';
 import { useTodos } from '../hooks/useTodos';
+import { useTodoView } from '../hooks/useTodoView';
 import { Icon } from './Icon';
+import { TodoToolbar } from './TodoToolbar';
+import { activeFilterCount } from '../todoView';
+import { UrgencyFlame, UrgencyPicker } from './UrgencyFlame';
 import { fmtFull, fmtShort, fmtTime, friendlyDate, localDate } from './ui';
 
 interface TodoFormValues {
@@ -10,12 +14,13 @@ interface TodoFormValues {
   description: string;
   projectId: number | null;
   dueDate: string;
+  urgency: Urgency;
 }
 
-const EMPTY_FORM: TodoFormValues = { title: '', description: '', projectId: null, dueDate: '' };
+const EMPTY_FORM: TodoFormValues = { title: '', description: '', projectId: null, dueDate: '', urgency: 1 };
 
 function fromTodo(t: Todo): TodoFormValues {
-  return { title: t.title, description: t.description, projectId: t.projectId, dueDate: t.dueDate ?? '' };
+  return { title: t.title, description: t.description, projectId: t.projectId, dueDate: t.dueDate ?? '', urgency: t.urgency };
 }
 
 interface TodoFormProps {
@@ -92,6 +97,7 @@ function TodoForm({ initial, projects, submitLabel, expanded = false, autoFocus 
               onChange={(e) => patch({ dueDate: e.target.value })}
             />
           </div>
+          <UrgencyPicker value={values.urgency} onChange={(urgency) => patch({ urgency })} />
         </>
       )}
       <div className="todo-form-actions">
@@ -244,6 +250,7 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
               description: v.description,
               ...(v.projectId === null ? { clearProject: true } : { projectId: v.projectId }),
               ...(v.dueDate === '' ? { clearDueDate: true } : { dueDate: v.dueDate }),
+              urgency: v.urgency,
             });
             setEditing(false);
             return true;
@@ -254,7 +261,10 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
   }
 
   return (
-    <li ref={rowRef} className={`todo ${todo.done ? 'done' : ''} ${pulseKey !== null ? 'pulse' : ''} ${leaving ? 'leaving' : ''}`}>
+    <li
+      ref={rowRef}
+      data-urgency={todo.done ? undefined : todo.urgency}
+      className={`todo ${todo.done ? 'done' : ''} ${pulseKey !== null ? 'pulse' : ''} ${leaving ? 'leaving' : ''}`}>
       <button
         type="button"
         role="checkbox"
@@ -288,6 +298,7 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
           </div>
         )}
       </div>
+      {!todo.done && <UrgencyFlame level={todo.urgency} className="todo-flame" />}
       {!confirmingDelete && (
         <div className="todo-actions">
           <button type="button" className="icon-btn" aria-label={`Edit "${todo.title}"`} onClick={() => setEditing(true)}><Icon name="edit" size={15} /></button>
@@ -317,8 +328,9 @@ interface TodoDrawerProps {
 export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClose, onOpenDay }: TodoDrawerProps) {
   const { todos, add } = useTodos();
   const rootRef = useRef<HTMLElement>(null);
-  const openTodos = todos.filter((t) => !t.done);
-  const done = todos.filter((t) => t.done);
+  const { view, patch, setSortKey, toggleDir, clearFilters, openTodos: visibleOpen, doneTodos: done } = useTodoView(todos, projects);
+  const openCount = todos.filter((t) => !t.done).length;
+  const filtering = activeFilterCount(view) > 0;
   const docked = open && pinned;
 
   useEffect(() => {
@@ -331,6 +343,7 @@ export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClos
       description: v.description,
       projectId: v.projectId,
       dueDate: v.dueDate || null,
+      urgency: v.urgency,
     };
     return (await add(input)) !== null;
   };
@@ -341,7 +354,7 @@ export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClos
       <aside ref={rootRef} className={`todo-drawer ${open ? 'open' : ''} ${docked ? 'docked' : ''}`} role="dialog" aria-label="Todos" inert={!open}>
         <div className="todo-head">
           <h4>Todos</h4>
-          <span className="badge open">{openTodos.length} open</span>
+          <span className="badge open">{openCount} open</span>
           <span className="spacer" />
           {canPin && (
             <button
@@ -359,17 +372,33 @@ export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClos
         <div className="todo-add">
           <TodoForm initial={EMPTY_FORM} projects={projects} submitLabel="Add" onSubmit={create} />
         </div>
+        {todos.length > 0 && (
+          <TodoToolbar
+            view={view}
+            projects={projects}
+            shown={visibleOpen.length}
+            total={openCount}
+            onChange={patch}
+            onSortKey={setSortKey}
+            onToggleDir={toggleDir}
+            onClear={clearFilters}
+          />
+        )}
         <div className="todo-body">
-          {openTodos.length === 0 ? (
-            <div className="todo-empty muted small">Nothing to do. Add a todo above, or quick-add one from a standup summary.</div>
+          {visibleOpen.length === 0 ? (
+            <div className="todo-empty muted small">
+              {openCount === 0
+                ? 'Nothing to do. Add a todo above, or quick-add one from a standup summary.'
+                : 'No open todos match your search and filters.'}
+            </div>
           ) : (
             <ul className="todo-list">
-              {openTodos.map((t) => <TodoRow key={t.id} todo={t} projects={projects} onOpenDay={onOpenDay} />)}
+              {visibleOpen.map((t) => <TodoRow key={t.id} todo={t} projects={projects} onOpenDay={onOpenDay} />)}
             </ul>
           )}
           {done.length > 0 && (
             <details className="todo-done">
-              <summary>Completed recently ({done.length})</summary>
+              <summary>Completed recently ({done.length}{filtering ? ' matching' : ''})</summary>
               <ul className="todo-list">
                 {done.map((t) => <TodoRow key={t.id} todo={t} projects={projects} onOpenDay={onOpenDay} />)}
               </ul>

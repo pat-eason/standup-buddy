@@ -17,6 +17,9 @@
   --accent: #ff5a5f;
   --accent-strong: #ee464c;
   --accent-soft: rgba(255, 90, 95, 0.14);
+  /* Urgency flame: yellow through orange to a red that sits next to the coral accent. */
+  --flame-1: #f6d778; --flame-2: #f4c542; --flame-3: #f6993a; --flame-4: #f2653a; --flame-5: #ee464c;
+  --flame-core: #fff4c4;
 
   --glass: rgba(255, 255, 255, 0.58);
   --glass-strong: rgba(255, 255, 255, 0.8);
@@ -614,7 +617,7 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
 .todo-body { flex: 1; overflow-y: auto; padding: 8px 14px 24px; }
 .todo-empty { padding: 20px 4px; }
 .todo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.todo { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--secondary-08); }
+.todo { display: flex; align-items: flex-start; gap: 10px; padding: 10px 8px; margin: 0 -8px; border-radius: 10px; border-bottom: 1px solid var(--secondary-08); }
 .todo.editing { display: block; }
 .todo-check { flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 7px; border: 1.5px solid var(--secondary-40); display: grid; place-items: center; color: var(--primary-50); background: #fff; }
 .todo.done .todo-check { background: var(--secondary); border-color: var(--secondary); }
@@ -668,6 +671,57 @@ body:has(.capture) { overflow: auto; background: linear-gradient(160deg, #d6efe3
 .todo-source-link { font: inherit; color: var(--secondary); font-weight: 600; text-decoration: underline; text-decoration-color: var(--secondary-40); text-underline-offset: 2px; }
 .todo-source-link:hover { text-decoration-color: var(--secondary); }
 .todo.leaving { pointer-events: none; }
+
+/* ---------- urgency ---------- */
+.flame { --flame-size: 14px; --flame-color: var(--flame-1); --flame-anim: none; display: inline-grid; flex: none; width: var(--flame-size); height: var(--flame-size); }
+.flame svg { width: 100%; height: 100%; overflow: visible; transform-origin: 50% 90%; animation: var(--flame-anim); }
+.flame-outer { fill: var(--flame-color); }
+.flame-core { fill: var(--flame-core); opacity: .85; }
+.flame[data-level='1'] { opacity: .75; }
+.flame[data-level='2'] { --flame-size: 16px; --flame-color: var(--flame-2); --flame-anim: flame-flicker 2.4s ease-in-out infinite; }
+.flame[data-level='3'] { --flame-size: 18px; --flame-color: var(--flame-3); --flame-anim: flame-flicker 1.6s ease-in-out infinite; }
+.flame[data-level='4'] { --flame-size: 20px; --flame-color: var(--flame-4); --flame-anim: flame-flicker 1.1s ease-in-out infinite; }
+.flame[data-level='5'] { --flame-size: 22px; --flame-color: var(--flame-5); --flame-anim: flame-flicker .7s ease-in-out infinite, flame-glow 1.4s ease-in-out infinite; }
+@keyframes flame-flicker {
+  0%, 100% { transform: scale(1, 1) rotate(0deg); }
+  25% { transform: scale(.95, 1.07) rotate(-2.5deg); }
+  50% { transform: scale(1.05, .97) rotate(1.5deg); }
+  75% { transform: scale(.97, 1.05) rotate(-1deg); }
+}
+@keyframes flame-glow {
+  0%, 100% { filter: drop-shadow(0 0 1px rgba(238, 70, 76, .35)); }
+  50% { filter: drop-shadow(0 0 5px rgba(238, 70, 76, .8)); }
+}
+@media (prefers-reduced-motion: reduce) { .flame svg { animation: none; } }
+.todo-flame { margin-top: 1px; align-self: flex-start; }
+
+/* The hotter the todo, the more its row glows from the flame side. */
+.todo[data-urgency='2'] { background: linear-gradient(90deg, rgba(244, 197, 66, .12), rgba(244, 197, 66, 0) 80%); }
+.todo[data-urgency='3'] { background: linear-gradient(90deg, rgba(246, 153, 58, .18), rgba(246, 153, 58, 0) 85%); }
+.todo[data-urgency='4'] { background: linear-gradient(90deg, rgba(242, 101, 58, .24), rgba(246, 153, 58, .06) 90%); box-shadow: inset 3px 0 0 var(--flame-4); }
+.todo[data-urgency='5'] { background: linear-gradient(90deg, rgba(238, 70, 76, .3), rgba(246, 153, 58, .1) 95%); box-shadow: inset 4px 0 0 var(--flame-5); }
+.todo[data-urgency='4'], .todo[data-urgency='5'] { border-bottom-color: transparent; }
+
+.urgency-picker { display: flex; align-items: center; gap: 4px; }
+.urgency-opt { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 10px; border: 1.5px solid transparent; opacity: .5; transition: opacity .12s, background .12s; }
+.urgency-opt:hover { opacity: .9; background: var(--secondary-08); }
+.urgency-opt.on { opacity: 1; background: #fff; border-color: var(--secondary-40); }
+.urgency-opt:focus-visible { outline: 2px solid var(--secondary); outline-offset: 1px; }
+.urgency-opt:not(.on):not(:hover) .flame svg { animation: none; }
+.urgency-name { margin-left: 6px; }
+
+.todo-toolbar { padding: 10px 14px; border-bottom: 1px solid var(--secondary-08); display: flex; flex-direction: column; gap: 8px; }
+.todo-search { position: relative; display: flex; align-items: center; }
+.todo-search > svg { position: absolute; left: 11px; color: var(--secondary-40); pointer-events: none; }
+.todo-search .input { padding-left: 32px; }
+.todo-toolbar-row { display: flex; align-items: center; gap: 8px; }
+.todo-toolbar-row .select { width: auto; flex: none; padding-top: 6px; padding-bottom: 6px; font-size: 12.5px; }
+.todo-dir, .todo-toolbar-row .btn { display: inline-flex; align-items: center; gap: 5px; }
+.btn.has-filters { border-color: var(--accent); color: var(--accent-strong); }
+.todo-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.todo-filters .select, .todo-filters .input { width: 100%; padding-top: 7px; padding-bottom: 7px; font-size: 12.5px; }
+.todo-date { display: flex; flex-direction: column; gap: 2px; }
+.todo-toolbar-status { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
 /* Let code blocks scroll inside settings cards instead of stretching the grid. */
 .settings-grid > *, .field > div { min-width: 0; }

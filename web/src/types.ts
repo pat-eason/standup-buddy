@@ -70,6 +70,9 @@ export interface SuggestedTodo {
 
 export type TodoSource = 'manual' | 'action_item' | 'suggested' | 'mcp';
 
+/** 1 is not urgent, 5 is incredibly urgent. */
+export type Urgency = 1 | 2 | 3 | 4 | 5;
+
 export interface Todo {
   id: number;
   title: string;
@@ -78,6 +81,7 @@ export interface Todo {
   dueDate: string | null;
   done: boolean;
   completedAt: string | null;
+  urgency: Urgency;
   source: TodoSource;
   sourceDay: string | null;
   createdAt: string;
@@ -88,6 +92,7 @@ export interface TodoInput {
   description?: string;
   projectId?: number | null;
   dueDate?: string | null;
+  urgency?: Urgency;
   sourceDay?: string | null;
   source?: TodoSource;
 }
@@ -99,6 +104,7 @@ export interface TodoPatch {
   clearProject?: boolean;
   dueDate?: string;
   clearDueDate?: boolean;
+  urgency?: Urgency;
   done?: boolean;
 }
 
