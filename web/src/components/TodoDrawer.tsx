@@ -1,8 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
-import type { Project, Todo, TodoInput, TodoSource } from '../types';
+import type { Project, Todo, TodoInput, TodoSource, Urgency } from '../types';
 import { PREF_FRIENDLY_DATES, usePreference } from '../hooks/usePreference';
 import { useTodos } from '../hooks/useTodos';
+import { useTodoView } from '../hooks/useTodoView';
 import { Icon } from './Icon';
+import { TodoToolbar } from './TodoToolbar';
+import { activeFilterCount } from '../todoView';
+import { UrgencyFlame, UrgencyPicker } from './UrgencyFlame';
 import { fmtFull, fmtShort, fmtTime, friendlyDate, localDate } from './ui';
 
 interface TodoFormValues {
@@ -10,12 +14,13 @@ interface TodoFormValues {
   description: string;
   projectId: number | null;
   dueDate: string;
+  urgency: Urgency;
 }
 
-const EMPTY_FORM: TodoFormValues = { title: '', description: '', projectId: null, dueDate: '' };
+const EMPTY_FORM: TodoFormValues = { title: '', description: '', projectId: null, dueDate: '', urgency: 1 };
 
 function fromTodo(t: Todo): TodoFormValues {
-  return { title: t.title, description: t.description, projectId: t.projectId, dueDate: t.dueDate ?? '' };
+  return { title: t.title, description: t.description, projectId: t.projectId, dueDate: t.dueDate ?? '', urgency: t.urgency };
 }
 
 interface TodoFormProps {
@@ -92,6 +97,7 @@ function TodoForm({ initial, projects, submitLabel, expanded = false, autoFocus 
               onChange={(e) => patch({ dueDate: e.target.value })}
             />
           </div>
+          <UrgencyPicker value={values.urgency} onChange={(urgency) => patch({ urgency })} />
         </>
       )}
       <div className="todo-form-actions">
@@ -121,6 +127,7 @@ function DueBadge({ due, done }: { due: string; done: boolean }) {
   );
 }
 
+const STRIKE_MS = 320;
 const SLIDE_OUT_MS = 220;
 const COLLAPSE_MS = 200;
 const COLLAPSE_PROPS = ['height', 'paddingTop', 'paddingBottom', 'borderBottomWidth'] as const;
@@ -129,8 +136,10 @@ const COLLAPSE_PROPS = ['height', 'paddingTop', 'paddingBottom', 'borderBottomWi
  * Slides the row right while it fades, then collapses its height so the rows below close
  * the gap. Resolves with a function that undoes it (used if the delete request fails).
  */
+const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 async function animateRowOut(el: HTMLElement): Promise<() => void> {
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return () => undefined;
+  if (prefersReducedMotion()) return () => undefined;
   const style = getComputedStyle(el);
   const from = Object.fromEntries(COLLAPSE_PROPS.map((p) => [p, style[p]]));
   const to = Object.fromEntries(COLLAPSE_PROPS.map((p) => [p, '0px']));
@@ -203,6 +212,8 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  // Between the click on the checkbox and the row leaving: the title is being struck through.
+  const [striking, setStriking] = useState(false);
   const leavingRef = useRef(false);
   const project = projects.find((p) => p.id === todo.projectId);
 
@@ -218,6 +229,33 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
         undo();
         setLeaving(false);
         setConfirmingDelete(false);
+      }
+    } finally {
+      leavingRef.current = false;
+    }
+  };
+
+  /** Completing strikes the title off, then the row leaves like a deleted one; un-completing is immediate. */
+  const toggleDone = async () => {
+    if (todo.done) {
+      await update(todo.id, { done: false });
+      return;
+    }
+    const el = rowRef.current;
+    if (leavingRef.current || !el) return;
+    leavingRef.current = true;
+    setLeaving(true);
+    try {
+      if (!prefersReducedMotion()) {
+        setStriking(true);
+        await new Promise((resolve) => setTimeout(resolve, STRIKE_MS));
+      }
+      const undo = await animateRowOut(el);
+      // On success the row unmounts from the open list; if the request failed, bring it back.
+      if (!(await update(todo.id, { done: true }))) {
+        undo();
+        setStriking(false);
+        setLeaving(false);
       }
     } finally {
       leavingRef.current = false;
@@ -244,6 +282,7 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
               description: v.description,
               ...(v.projectId === null ? { clearProject: true } : { projectId: v.projectId }),
               ...(v.dueDate === '' ? { clearDueDate: true } : { dueDate: v.dueDate }),
+              urgency: v.urgency,
             });
             setEditing(false);
             return true;
@@ -254,26 +293,30 @@ function TodoRow({ todo, projects, onOpenDay }: { todo: Todo; projects: Project[
   }
 
   return (
-    <li ref={rowRef} className={`todo ${todo.done ? 'done' : ''} ${pulseKey !== null ? 'pulse' : ''} ${leaving ? 'leaving' : ''}`}>
+    <li
+      ref={rowRef}
+      data-urgency={todo.done ? undefined : todo.urgency}
+      className={`todo ${todo.done ? 'done' : ''} ${striking ? 'striking' : ''} ${pulseKey !== null ? 'pulse' : ''} ${leaving ? 'leaving' : ''}`}>
       <button
         type="button"
         role="checkbox"
-        aria-checked={todo.done}
+        aria-checked={todo.done || striking}
         aria-label={todo.done ? `Mark "${todo.title}" not done` : `Mark "${todo.title}" done`}
         className="todo-check"
-        onClick={() => void update(todo.id, { done: !todo.done })}
+        onClick={() => void toggleDone()}
       >
-        {todo.done && <Icon name="check" size={13} />}
+        {(todo.done || striking) && <Icon name="check" size={13} />}
       </button>
       <div className="todo-main">
-        <div className="todo-title">{todo.title}</div>
+        <div className="todo-title"><span className="todo-title-text">{todo.title}</span></div>
         {todo.description && <TodoDescription text={todo.description} />}
-        {(project || todo.dueDate) && (
+        {(project || todo.dueDate || !todo.done) && (
           <div className="todo-meta">
             {project && (
               <span className="chip"><span className="pdot" style={{ background: project.color }} />{project.name}</span>
             )}
             {todo.dueDate && <DueBadge due={todo.dueDate} done={todo.done} />}
+            {!todo.done && <UrgencyFlame level={todo.urgency} className="todo-flame" />}
           </div>
         )}
         <TodoSourceLine todo={todo} onOpenDay={onOpenDay} />
@@ -317,8 +360,9 @@ interface TodoDrawerProps {
 export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClose, onOpenDay }: TodoDrawerProps) {
   const { todos, add } = useTodos();
   const rootRef = useRef<HTMLElement>(null);
-  const openTodos = todos.filter((t) => !t.done);
-  const done = todos.filter((t) => t.done);
+  const { view, patch, setSortKey, toggleDir, clearFilters, openTodos: visibleOpen, doneTodos: done } = useTodoView(todos, projects);
+  const openCount = todos.filter((t) => !t.done).length;
+  const filtering = activeFilterCount(view) > 0;
   const docked = open && pinned;
 
   useEffect(() => {
@@ -331,6 +375,7 @@ export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClos
       description: v.description,
       projectId: v.projectId,
       dueDate: v.dueDate || null,
+      urgency: v.urgency,
     };
     return (await add(input)) !== null;
   };
@@ -341,7 +386,7 @@ export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClos
       <aside ref={rootRef} className={`todo-drawer ${open ? 'open' : ''} ${docked ? 'docked' : ''}`} role="dialog" aria-label="Todos" inert={!open}>
         <div className="todo-head">
           <h4>Todos</h4>
-          <span className="badge open">{openTodos.length} open</span>
+          <span className="badge open">{openCount} open</span>
           <span className="spacer" />
           {canPin && (
             <button
@@ -359,17 +404,33 @@ export function TodoDrawer({ open, projects, pinned, canPin, onTogglePin, onClos
         <div className="todo-add">
           <TodoForm initial={EMPTY_FORM} projects={projects} submitLabel="Add" onSubmit={create} />
         </div>
+        {todos.length > 0 && (
+          <TodoToolbar
+            view={view}
+            projects={projects}
+            shown={visibleOpen.length}
+            total={openCount}
+            onChange={patch}
+            onSortKey={setSortKey}
+            onToggleDir={toggleDir}
+            onClear={clearFilters}
+          />
+        )}
         <div className="todo-body">
-          {openTodos.length === 0 ? (
-            <div className="todo-empty muted small">Nothing to do. Add a todo above, or quick-add one from a standup summary.</div>
+          {visibleOpen.length === 0 ? (
+            <div className="todo-empty muted small">
+              {openCount === 0
+                ? 'Nothing to do. Add a todo above, or quick-add one from a standup summary.'
+                : 'No open todos match your search and filters.'}
+            </div>
           ) : (
             <ul className="todo-list">
-              {openTodos.map((t) => <TodoRow key={t.id} todo={t} projects={projects} onOpenDay={onOpenDay} />)}
+              {visibleOpen.map((t) => <TodoRow key={t.id} todo={t} projects={projects} onOpenDay={onOpenDay} />)}
             </ul>
           )}
           {done.length > 0 && (
             <details className="todo-done">
-              <summary>Completed recently ({done.length})</summary>
+              <summary>Completed recently ({done.length}{filtering ? ' matching' : ''})</summary>
               <ul className="todo-list">
                 {done.map((t) => <TodoRow key={t.id} todo={t} projects={projects} onOpenDay={onOpenDay} />)}
               </ul>

@@ -18,18 +18,20 @@ type Todo struct {
 	DueDate     *string    `json:"dueDate"`
 	Done        bool       `json:"done"`
 	CompletedAt *time.Time `json:"completedAt"`
+	// Urgency runs from 1 (not urgent) to 5 (incredibly urgent).
+	Urgency int `json:"urgency"`
 	// Source is manual, action_item, suggested or mcp; SourceDay is the standup it came from.
 	Source    string    `json:"source"`
 	SourceDay *string   `json:"sourceDay"`
 	CreatedAt time.Time `json:"createdAt"`
 }
 
-const todoCols = `id, title, description, project_id, to_char(due_date, 'YYYY-MM-DD'), done, completed_at,
+const todoCols = `id, title, description, project_id, to_char(due_date, 'YYYY-MM-DD'), done, completed_at, urgency,
 	source, to_char(source_day, 'YYYY-MM-DD'), created_at`
 
 func scanTodo(row pgx.Row) (Todo, error) {
 	var t Todo
-	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.ProjectID, &t.DueDate, &t.Done, &t.CompletedAt, &t.Source, &t.SourceDay, &t.CreatedAt)
+	err := row.Scan(&t.ID, &t.Title, &t.Description, &t.ProjectID, &t.DueDate, &t.Done, &t.CompletedAt, &t.Urgency, &t.Source, &t.SourceDay, &t.CreatedAt)
 	return t, err
 }
 
@@ -85,11 +87,26 @@ type todoInput struct {
 	Description string  `json:"description"`
 	ProjectID   *int64  `json:"projectId"`
 	DueDate     *string `json:"dueDate"`
+	Urgency     *int    `json:"urgency"`
 	SourceDay   *string `json:"sourceDay"`
 	Source      string  `json:"source"`
 }
 
 var todoSources = map[string]bool{"manual": true, "action_item": true, "suggested": true, "mcp": true}
+
+const (
+	minUrgency     = 1
+	maxUrgency     = 5
+	defaultUrgency = minUrgency
+)
+
+// cleanUrgency validates an optional urgency; nil means "not given".
+func cleanUrgency(u *int) (*int, error) {
+	if u != nil && (*u < minUrgency || *u > maxUrgency) {
+		return nil, bad("urgency must be between %d and %d", minUrgency, maxUrgency)
+	}
+	return u, nil
+}
 
 func cleanDate(d *string) (*string, error) {
 	if d == nil || strings.TrimSpace(*d) == "" {
@@ -114,6 +131,14 @@ func (s *Store) CreateTodo(ctx context.Context, in todoInput) (Todo, error) {
 	if err != nil {
 		return Todo{}, err
 	}
+	urgency, err := cleanUrgency(in.Urgency)
+	if err != nil {
+		return Todo{}, err
+	}
+	level := defaultUrgency
+	if urgency != nil {
+		level = *urgency
+	}
 	source := in.Source
 	// The standup sources only make sense with the day they came from.
 	if source == "" || ((source == "action_item" || source == "suggested") && src == nil) {
@@ -122,9 +147,9 @@ func (s *Store) CreateTodo(ctx context.Context, in todoInput) (Todo, error) {
 	if !todoSources[source] {
 		return Todo{}, bad("unknown todo source %q", source)
 	}
-	return scanTodo(s.pool.QueryRow(ctx, `INSERT INTO todos (title, description, project_id, due_date, source_day, source)
-		VALUES ($1, $2, $3, $4::date, $5::date, $6) RETURNING `+todoCols,
-		title, strings.TrimSpace(in.Description), in.ProjectID, due, src, source))
+	return scanTodo(s.pool.QueryRow(ctx, `INSERT INTO todos (title, description, project_id, due_date, source_day, source, urgency)
+		VALUES ($1, $2, $3, $4::date, $5::date, $6, $7) RETURNING `+todoCols,
+		title, strings.TrimSpace(in.Description), in.ProjectID, due, src, source, level))
 }
 
 // todoPatch uses explicit "clear" flags because null and absent look the same once decoded.
@@ -135,6 +160,7 @@ type todoPatch struct {
 	ClearProject bool    `json:"clearProject"`
 	DueDate      *string `json:"dueDate"`
 	ClearDue     bool    `json:"clearDueDate"`
+	Urgency      *int    `json:"urgency"`
 	Done         *bool   `json:"done"`
 }
 
@@ -143,6 +169,10 @@ func (s *Store) UpdateTodo(ctx context.Context, id int64, p todoPatch) (Todo, er
 		return Todo{}, bad("todo title is required")
 	}
 	due, err := cleanDate(p.DueDate)
+	if err != nil {
+		return Todo{}, err
+	}
+	urgency, err := cleanUrgency(p.Urgency)
 	if err != nil {
 		return Todo{}, err
 	}
@@ -159,9 +189,10 @@ func (s *Store) UpdateTodo(ctx context.Context, id int64, p todoPatch) (Todo, er
 			completed_at = CASE WHEN $8::boolean IS NULL THEN completed_at
 				WHEN $8 AND NOT done THEN now() WHEN NOT $8 THEN NULL ELSE completed_at END,
 			done = COALESCE($8, done),
+			urgency = COALESCE($9::smallint, urgency),
 			updated_at = now()
 		WHERE id = $1 RETURNING `+todoCols,
-		id, title, p.Description, p.ProjectID, p.ClearProject, due, p.ClearDue, p.Done))
+		id, title, p.Description, p.ProjectID, p.ClearProject, due, p.ClearDue, p.Done, urgency))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, errNotFound
 	}

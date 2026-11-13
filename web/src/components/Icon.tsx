@@ -35,6 +35,9 @@ const paths: Record<string, ReactNode> = {
   why: <><path d="M9 18h6M10 21h4" /><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1V16h5v-.1c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" /></>,
   todo: <><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8.5 12.5l2.5 2.5 4.5-5" /></>,
   pin: <><path d="M9 4h6l-1 5.5 3 3V14H7v-1.5l3-3z" /><path d="M12 14v6" /></>,
+  filter: <path d="M4 5.5h16l-6 7.2v5.3l-4 2v-7.3z" />,
+  'sort-asc': <path d="M12 19V5M6 11l6-6 6 6" />,
+  'sort-desc': <path d="M12 5v14M6 13l6 6 6-6" />,
   external: <><path d="M14 4.5h5.5V10M19.5 4.5L11 13" /><path d="M18 14v3.5a2 2 0 0 1-2 2H6.5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2H10" /></>,
 };
 

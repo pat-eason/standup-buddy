@@ -148,6 +148,7 @@ type addTodoArg struct {
 	Description string  `json:"description,omitempty"`
 	ProjectID   *int64  `json:"projectId,omitempty" jsonschema:"from list_projects"`
 	DueDate     *string `json:"dueDate,omitempty" jsonschema:"YYYY-MM-DD"`
+	Urgency     *int    `json:"urgency,omitempty" jsonschema:"1 (not urgent, the default) to 5 (incredibly urgent)"`
 }
 type listTodosArg struct {
 	IncludeDone bool `json:"includeDone,omitempty" jsonschema:"also return completed todos"`
@@ -313,9 +314,9 @@ func (s *Server) newMCPServer() *mcp.Server {
 		return out(summaryDay{day.Date, day.Status, day.FinalizedAt, day.Finalization}, nil)
 	})
 
-	mcp.AddTool(srv, &mcp.Tool{Name: "add_todo", Description: "Create a todo."},
+	mcp.AddTool(srv, &mcp.Tool{Name: "add_todo", Description: "Create a todo. Optionally set urgency from 1 (not urgent) to 5 (incredibly urgent)."},
 		func(ctx context.Context, _ *mcp.CallToolRequest, a addTodoArg) (*mcp.CallToolResult, Todo, error) {
-			return out(s.store.CreateTodo(ctx, todoInput{Title: a.Title, Description: a.Description, ProjectID: a.ProjectID, DueDate: a.DueDate, Source: "mcp"}))
+			return out(s.store.CreateTodo(ctx, todoInput{Title: a.Title, Description: a.Description, ProjectID: a.ProjectID, DueDate: a.DueDate, Urgency: a.Urgency, Source: "mcp"}))
 		})
 
 	mcp.AddTool(srv, &mcp.Tool{

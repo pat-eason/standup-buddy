@@ -30,7 +30,8 @@ interface TodosValue {
   reveal: (id: number) => void;
   /** Adds a todo; resolves to the saved todo, or null when the request failed (a toast is shown). */
   add: (input: TodoInput) => Promise<Todo | null>;
-  update: (id: number, patch: TodoPatch) => Promise<void>;
+  /** Resolves to false when the request failed (a toast is shown). */
+  update: (id: number, patch: TodoPatch) => Promise<boolean>;
   /** Deletes a todo; resolves to false when the request failed (a toast is shown). */
   remove: (id: number) => Promise<boolean>;
 }
@@ -83,8 +84,10 @@ export function TodosProvider({ children }: { children: ReactNode }) {
       try {
         const t = await api.updateTodo(id, patch);
         setTodos((prev) => prev.map((x) => (x.id === id ? t : x)));
+        return true;
       } catch (e) {
         toast(errMsg(e), true);
+        return false;
       }
     },
     [toast],
