@@ -80,7 +80,53 @@ input, textarea, select { font: inherit; color: inherit; }
   color: rgba(214, 240, 226, 0.78); font-weight: 500; text-align: left; transition: background .15s, color .15s; white-space: nowrap;
 }
 .nav-item:hover { background: rgba(191, 230, 211, 0.1); color: var(--primary-50); }
-.nav-item.active { background: var(--primary); color: var(--secondary); }
+.nav-item { z-index: 1; }
+.nav-item.active, .nav-item.active:hover { background: transparent; color: var(--secondary); }
+/* One marker glides behind whichever item is active; the item itself only changes text colour. */
+.nav-marker {
+  position: absolute; top: 0; left: 0; z-index: 0; border-radius: 14px; background: var(--primary); pointer-events: none;
+  transition: transform .42s cubic-bezier(.65, 0, .25, 1), width .42s cubic-bezier(.65, 0, .25, 1), height .42s cubic-bezier(.65, 0, .25, 1), opacity .2s;
+}
+.nav-marker[data-snap='true'] { transition: opacity .2s; }
+
+/* Page curtain: a panel with a soft, slanted (120deg) leading edge sweeps right to left over the whole
+   content region (topbar included) and holds with the incoming page's title, the page swaps
+   underneath, then it keeps going off the left edge. COVER_MS in usePageTransition.ts must land
+   inside the hold (28%-72%, i.e. 300-770ms of 1.07s). */
+.curtain { position: absolute; inset: 0; z-index: 40; overflow: hidden; pointer-events: none; }
+/* Skewed 30deg off vertical, so it is 1.2H wider than the region (H = viewport height) to cover the
+   slanted ends. The mask feathers both long edges; the skew carries the feather along. */
+.curtain-panel {
+  position: absolute; top: 0; bottom: 0; left: -60vh; width: calc(100% + 120vh); background: var(--secondary);
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 96px, #000 calc(100% - 96px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 96px, #000 calc(100% - 96px), transparent 100%);
+  transform: translateX(104%) skewX(30deg); animation: curtain-sweep 1.07s both;
+}
+.curtain-title {
+  position: absolute; inset: 0 var(--curtain-inset, 0) 0 0; container-type: size; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-serif); color: var(--primary); letter-spacing: -0.03em; opacity: 0; animation: curtain-title 1.07s both;
+}
+/* Sized from the title box, which is the part of the region not covered by a floating todo drawer. */
+.curtain-title-text { font-size: clamp(var(--title-min), min(15cqi, 28cqb), var(--title-max)); white-space: nowrap; }
+.shell.todos-floating .curtain-title { --curtain-inset: min(var(--todo-w), 100vw, 60%); }
+/* The title scales with the curtain (the content region), so it adapts to the pinned todo drawer too;
+   each breakpoint only sets the floor and ceiling. */
+.curtain { --title-min: 64px; --title-max: 152px; }
+@media (max-width: 820px) { .curtain { --title-min: 48px; --title-max: 104px; } }
+@media (max-width: 560px) { .curtain { --title-min: 36px; --title-max: 72px; } }
+.curtain-title i { color: var(--accent); font-style: normal; }
+@keyframes curtain-sweep {
+  0% { transform: translateX(104%) skewX(30deg); animation-timing-function: cubic-bezier(.7, 0, .2, 1); }
+  28% { transform: translateX(0) skewX(30deg); }
+  72% { transform: translateX(0) skewX(30deg); animation-timing-function: cubic-bezier(.8, 0, .3, 1); }
+  100% { transform: translateX(-104%) skewX(30deg); }
+}
+@keyframes curtain-title {
+  0%, 14% { opacity: 0; transform: translateX(32px); }
+  32%, 68% { opacity: 1; transform: translateX(0); }
+  88%, 100% { opacity: 0; transform: translateX(-32px); }
+}
+@media (prefers-reduced-motion: reduce) { .nav-marker, .nav-marker[data-snap='true'] { transition: none; } .curtain { display: none; } }
 .nav-item svg { flex: none; }
 .nav-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(191, 230, 211, 0.45); margin: 26px 14px 8px; }
 .recent { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; flex: 1; }
