@@ -47,10 +47,12 @@ func main() {
 
 	store := &Store{pool: pool}
 	srv := &Server{
-		pool:          pool,
-		store:         store,
-		cfg:           newConfig(store, appSecret, os.Getenv("ANTHROPIC_API_KEY")),
-		agent:         newAgentClient(env("AGENT_URL", "http://localhost:3000"), env("INTERNAL_TOKEN", "dev-internal-token")),
+		pool:  pool,
+		store: store,
+		cfg:   newConfig(store, appSecret, os.Getenv("ANTHROPIC_API_KEY")),
+		agent: newAgentClient(env("AGENT_URL", "http://localhost:3000"), env("INTERNAL_TOKEN", "dev-internal-token"), ""),
+		runner: newAgentClient(env("CLAUDE_CODE_AGENT_URL", "http://localhost:3100"), env("INTERNAL_TOKEN", "dev-internal-token"),
+			"The Claude Code runner is not running. Check it with: docker compose ps claude-runner"),
 		internalToken: env("INTERNAL_TOKEN", "dev-internal-token"),
 		schemaVersion: version,
 	}

@@ -19,7 +19,8 @@ type Server struct {
 	pool          *pgxpool.Pool
 	store         *Store
 	cfg           *Config
-	agent         *AgentClient
+	agent         *AgentClient // Flue service (Anthropic API key)
+	runner        *AgentClient // Claude Code runner on the host (subscription)
 	internalToken string
 	schemaVersion int
 	inflight      sync.Map // "collate:2026-11-11" -> struct{}
@@ -301,7 +302,7 @@ func (s *Server) routes() http.Handler {
 		})
 	}))
 
-	// chat thread index (conversations themselves live in Flue's tables)
+	// chat thread index (API-key conversations live in Flue's tables; subscription ones in chat_messages)
 	mux.HandleFunc("GET /api/threads", h(func(r *http.Request) (any, error) { return s.store.ListThreads(r.Context()) }))
 	mux.HandleFunc("POST /api/threads", h(func(r *http.Request) (any, error) { return s.store.CreateThread(r.Context()) }))
 	mux.HandleFunc("PATCH /api/threads/{id}", h(func(r *http.Request) (any, error) {
@@ -314,7 +315,13 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("DELETE /api/threads/{id}", h(func(r *http.Request) (any, error) {
 		return nil, s.store.DeleteThread(r.Context(), r.PathValue("id"))
 	}))
+	mux.HandleFunc("GET /api/threads/{id}/messages", h(func(r *http.Request) (any, error) {
+		return s.store.ListChatMessages(r.Context(), r.PathValue("id"))
+	}))
+	mux.HandleFunc("POST /api/threads/{id}/chat", s.chatStream)
 	mux.HandleFunc("DELETE /api/threads", h(func(r *http.Request) (any, error) { return nil, s.store.ClearThreads(r.Context()) }))
+
+	s.registerClaudeRoutes(mux)
 
 	// settings
 	mux.HandleFunc("GET /api/settings", h(func(r *http.Request) (any, error) { return s.cfg.View(r.Context()) }))
@@ -339,6 +346,13 @@ func (s *Server) routes() http.Handler {
 		return s.cfg.View(r.Context())
 	}))
 	mux.HandleFunc("POST /api/settings/test", h(func(r *http.Request) (any, error) {
+		if st, err := s.cfg.Get(r.Context()); err == nil && st.LLMProvider == providerClaudeCode {
+			reply, err := s.runner.Test(r.Context(), AgentConfig{Settings: st})
+			if err != nil {
+				return nil, err
+			}
+			return map[string]string{"reply": reply}, nil
+		}
 		reply, err := s.cfg.TestKey(r.Context())
 		if err != nil {
 			return nil, agentError{err.Error()}

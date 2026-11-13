@@ -154,7 +154,38 @@ export interface ChatThread {
   updatedAt: string;
 }
 
+export type LlmProvider = 'api_key' | 'claude_code';
+
+export type ChatPart =
+  | { type: 'text'; text: string }
+  | { type: 'tool'; id: string; name?: string; input?: unknown; state?: 'running' | 'done' | 'error' };
+
+export interface ChatMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  parts: ChatPart[];
+  createdAt: string;
+}
+
+/** One NDJSON line streamed from POST /api/threads/{id}/chat. */
+export type ChatEvent =
+  | { type: 'text'; delta: string }
+  | { type: 'tool'; id: string; name?: string; input?: unknown; state: 'running' | 'done' | 'error' }
+  | { type: 'done' }
+  | { type: 'error'; message: string };
+
+export interface ClaudeStatus {
+  /** False when the runner service itself is not reachable. */
+  runner: boolean;
+  loggedIn: boolean;
+  email?: string;
+  orgName?: string;
+  subscriptionType?: string;
+  message?: string;
+}
+
 export interface AppSettings {
+  llmProvider: LlmProvider;
   apiKeySource: 'stored' | 'env' | 'none';
   apiKeyHint: string | null;
   collateModel: string;

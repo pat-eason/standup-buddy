@@ -20,8 +20,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+const (
+	providerAPIKey     = "api_key"
+	providerClaudeCode = "claude_code"
+)
+
 func defaultSettings() Settings {
 	return Settings{
+		LLMProvider:       providerAPIKey,
 		CollateModel:      "claude-haiku-5-5",
 		FinalizeModel:     "claude-haiku-5-5",
 		ChatModel:         "claude-haiku-5-5",
@@ -35,6 +41,7 @@ func defaultSettings() Settings {
 }
 
 type settingsPatch struct {
+	LLMProvider          *string `json:"llmProvider"`
 	CollateModel         *string `json:"collateModel"`
 	FinalizeModel        *string `json:"finalizeModel"`
 	ChatModel            *string `json:"chatModel"`
@@ -100,6 +107,12 @@ func (c *Config) Patch(ctx context.Context, p settingsPatch) (Settings, error) {
 	setRaw(&s.UserContext, p.UserContext)
 	setRaw(&s.CollateInstructions, p.CollateInstructions)
 	setRaw(&s.FinalizeInstructions, p.FinalizeInstructions)
+	if p.LLMProvider != nil {
+		if *p.LLMProvider != providerAPIKey && *p.LLMProvider != providerClaudeCode {
+			return s, bad("invalid provider")
+		}
+		s.LLMProvider = *p.LLMProvider
+	}
 	if p.ThinkingLevel != nil {
 		if !thinkingLevels[*p.ThinkingLevel] {
 			return s, bad("invalid thinking level")
