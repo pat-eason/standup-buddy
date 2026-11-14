@@ -4,6 +4,8 @@ A web app for daily standups. Log a stream of consciousness through the day, tag
 
 ![The standup board with points, projects, discussion notes and meeting notes](docs/screenshots/standup-board.png)
 
+**Watch the demo:** [standup-buddy-calm.mp4](docs/video/standup-buddy-calm.mp4) (1:43, narrated walkthrough of stream, collate, standup, wrap-up, todos, insights and MCP).
+
 ## What it does
 
 - **Stream.** Jot things down as they happen and tag each entry to one or more projects.
