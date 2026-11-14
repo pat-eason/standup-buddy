@@ -4,3 +4,7 @@ out
 .env
 .DS_Store
 *.log
+
+# demo video recordings
+docs/video/takes/
+docs/video/takes-calm/
