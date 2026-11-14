@@ -26,6 +26,16 @@ A web app for daily standups. Log a stream of consciousness through the day, tag
 
 ![Chat popup answering a question from the recorded notes](docs/screenshots/chat.png)
 
+## Quick start
+
+1. **Start it.** With Docker installed: `cp .env.example .env && docker compose up --build`, then open <http://standup.buddy.localhost:8080>. Details are under [Run it](#run-it).
+2. **Pick a model.** Go to **Settings → Model provider** and either paste an Anthropic API key or link your Claude Code subscription ([how](#claude-code-subscription)). Nothing else needs configuring.
+3. **Add projects.** Press `P` and create one or two, so notes can be tagged to them.
+4. **Stream notes through the day.** Press `N`, type a line, tag a project, press Add. Do this whenever something happens.
+5. **Collate.** At standup time press `Shift` `C`. Claude sorts the day into updates, questions, decisions and a parking lot. Open the **Standup** tab (`2`) to run the meeting: filter, check points off, add notes on a point.
+6. **Finalize.** Press `Shift` `F` for the **Wrap-up** (`3`): decisions, action items and follow-ups. Send action items to your todos with their add button.
+7. **Look back.** `I` for the week's insights and recap, `⌘K` to ask your notes a question. Press `?` any time for every shortcut.
+
 ## Run it
 
 You need Docker. Then:
